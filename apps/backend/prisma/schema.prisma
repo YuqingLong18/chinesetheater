@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = env("DATABASE_PROVIDER")
+  url      = env("DATABASE_URL")
+}
+
+enum SenderType {
+  student
+  ai
+}
+
+model Teacher {
+  teacherId    Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+}
+
+model Session {
+  sessionId       Int              @id @default(autoincrement())
+  teacher         Teacher          @relation(fields: [teacherId], references: [teacherId], onDelete: Cascade)
+  teacherId       Int
+  sessionName     String
+  sessionPin      String           @unique
+  authorName      String
+  literatureTitle String
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  students        Student[]
+  conversations   Conversation[]
+  images          GeneratedImage[]
+}
+
+model Student {
+  studentId      Int              @id @default(autoincrement())
+  session        Session          @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId      Int
+  username       String
+  passwordHash   String
+  isUsed         Boolean          @default(false)
+  firstLoginAt   DateTime?
+  lastActivityAt DateTime?
+  conversations  Conversation[]
+  messages       Message[]
+  images         GeneratedImage[]
+
+  @@unique([sessionId, username])
+}
+
+model Conversation {
+  conversationId Int       @id @default(autoincrement())
+  student        Student   @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  studentId      Int
+  session        Session   @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId      Int
+  messageCount   Int       @default(0)
+  totalDuration  Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  messages       Message[]
+
+  @@unique([studentId, sessionId])
+}
+
+model Message {
+  messageId      Int          @id @default(autoincrement())
+  conversation   Conversation @relation(fields: [conversationId], references: [conversationId], onDelete: Cascade)
+  conversationId Int
+  student        Student?     @relation(fields: [studentId], references: [studentId], onDelete: SetNull)
+  studentId      Int?
+  senderType     SenderType
+  content        String
+  timestamp      DateTime     @default(now())
+}
+
+model GeneratedImage {
+  imageId          Int      @id @default(autoincrement())
+  student          Student  @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  studentId        Int
+  session          Session  @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId        Int
+  style            String
+  sceneDescription String
+  imageUrl         String
+  editCount        Int      @default(0)
+  isShared         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}

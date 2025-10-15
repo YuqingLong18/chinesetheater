@@ -1,0 +1,38 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.9.3
+2 info using node@v22.20.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 info config found workspace root at /Users/ylong/Documents/chinesetheater
+5 silly config load:file:/Users/ylong/Documents/chinesetheater/.npmrc
+6 silly config load:file:/Users/ylong/.npmrc
+7 silly config load:file:/Users/ylong/.npm-global/etc/npmrc
+8 verbose title npm install express cors jsonwebtoken bcryptjs dotenv zod @prisma/client
+9 verbose argv "install" "express" "cors" "jsonwebtoken" "bcryptjs" "dotenv" "zod" "@prisma/client" "--cache" ".npm-cache"
+10 verbose logfile logs-max:10 dir:/Users/ylong/Documents/chinesetheater/apps/backend/.npm-cache/_logs/2025-10-15T08_13_00_969Z-
+11 verbose logfile /Users/ylong/Documents/chinesetheater/apps/backend/.npm-cache/_logs/2025-10-15T08_13_00_969Z-debug-0.log
+12 silly logfile done cleaning log files
+13 http fetch GET https://registry.npmjs.org/npm attempt 1 failed with ENOTFOUND
+14 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+15 silly idealTree buildDeps
+16 silly fetch manifest express@*
+17 silly packumentCache full:https://registry.npmjs.org/express cache-miss
+18 http fetch GET https://registry.npmjs.org/express attempt 1 failed with ENOTFOUND
+19 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: apps/backend
+20 http fetch GET https://registry.npmjs.org/npm attempt 2 failed with ENOTFOUND
+21 http fetch GET https://registry.npmjs.org/express attempt 2 failed with ENOTFOUND
+22 http fetch GET https://registry.npmjs.org/npm attempt 3 failed with ENOTFOUND
+23 http fetch GET https://registry.npmjs.org/express attempt 3 failed with ENOTFOUND
+24 silly fetch manifest cors@*
+25 silly packumentCache full:https://registry.npmjs.org/cors cache-miss
+26 http fetch GET https://registry.npmjs.org/cors attempt 1 failed with ENOTFOUND
+27 http fetch GET https://registry.npmjs.org/cors attempt 2 failed with ENOTFOUND
+28 http fetch GET https://registry.npmjs.org/cors attempt 3 failed with ENOTFOUND
+29 silly fetch manifest jsonwebtoken@*
+30 silly packumentCache full:https://registry.npmjs.org/jsonwebtoken cache-miss
+31 http fetch GET https://registry.npmjs.org/jsonwebtoken attempt 1 failed with ENOTFOUND
+32 http fetch GET https://registry.npmjs.org/jsonwebtoken attempt 2 failed with ENOTFOUND
+33 http fetch GET https://registry.npmjs.org/jsonwebtoken attempt 3 failed with ENOTFOUND
+34 silly fetch manifest bcryptjs@*
+35 silly packumentCache full:https://registry.npmjs.org/bcryptjs cache-miss
+36 http fetch GET https://registry.npmjs.org/bcryptjs attempt 1 failed with ENOTFOUND
+37 http fetch GET https://registry.npmjs.org/bcryptjs attempt 2 failed with ENOTFOUND
