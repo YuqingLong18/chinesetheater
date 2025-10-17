@@ -81,3 +81,12 @@ chinesetheater/
 - 增强课堂实时性（WebSocket/实时消息）
 
 > 提示：本原型聚焦架构与流程，调用 OpenRouter 时请注意 API 费用及速率限制，可在 `.env` 中调整模型。
+
+- 图像生成默认支持 OpenAI DALL·E 及 Gemini 等基于 `/chat/completions` 的模型，只需在 `apps/backend/.env` 中设置 `OPENROUTER_IMAGE_MODEL` 为对应 ID。
+
+
+## 开发辅助脚本
+
+- `npm run create:teacher -- <用户名> <密码>`：在数据库中创建教师账号，便于首次登录后端控制面板。
+  - 该命令会调用 `apps/backend/scripts/create-teacher.ts`，自动加载 `.env` 中的数据库连接配置。
+

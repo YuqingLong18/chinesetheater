@@ -8,7 +8,8 @@
     "build": "tsc --project tsconfig.build.json",
     "start": "node build/server.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "create:teacher": "tsx scripts/create-teacher.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",

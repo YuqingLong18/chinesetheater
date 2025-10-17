@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = env("DATABASE_PROVIDER")
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = "postgresql://chinesetheater:W1H5ULol@localhost:5432/chinesetheater"
 }
 
 enum SenderType {
