@@ -58,3 +58,50 @@ export const getSessionAnalytics = async (sessionId: number) => {
       }))
   };
 };
+
+export const getSessionActivityFeed = async (sessionId: number) => {
+  const [messages, imageActivities] = await Promise.all([
+    prisma.message.findMany({
+      where: { conversation: { sessionId } },
+      orderBy: { timestamp: 'desc' },
+      include: {
+        conversation: {
+          select: {
+            student: { select: { username: true, studentId: true } }
+          }
+        }
+      }
+    }),
+    prisma.imageActivity.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        student: { select: { username: true, studentId: true } },
+        image: { select: { imageUrl: true, style: true, sceneDescription: true } }
+      }
+    })
+  ]);
+
+  return {
+    messages: messages.map((message) => ({
+      messageId: message.messageId,
+      studentId: message.conversation.student.studentId,
+      username: message.conversation.student.username,
+      senderType: message.senderType,
+      content: message.content,
+      timestamp: message.timestamp
+    })),
+    images: imageActivities.map((activity) => ({
+      activityId: activity.activityId,
+      imageId: activity.imageId,
+      studentId: activity.studentId,
+      username: activity.student.username,
+      actionType: activity.actionType,
+      instruction: activity.instruction,
+      createdAt: activity.createdAt,
+      imageUrl: activity.image.imageUrl,
+      style: activity.image.style,
+      sceneDescription: activity.image.sceneDescription
+    }))
+  };
+};

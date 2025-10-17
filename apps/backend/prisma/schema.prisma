@@ -12,6 +12,11 @@ enum SenderType {
   ai
 }
 
+enum ImageActionType {
+  generation
+  edit
+}
+
 model Teacher {
   teacherId    Int       @id @default(autoincrement())
   username     String    @unique
@@ -33,7 +38,9 @@ model Session {
   students        Student[]
   conversations   Conversation[]
   images          GeneratedImage[]
+  imageActivities ImageActivity[]
 }
+
 
 model Student {
   studentId      Int              @id @default(autoincrement())
@@ -41,12 +48,14 @@ model Student {
   sessionId      Int
   username       String
   passwordHash   String
+  initialPassword String?
   isUsed         Boolean          @default(false)
   firstLoginAt   DateTime?
   lastActivityAt DateTime?
   conversations  Conversation[]
   messages       Message[]
   images         GeneratedImage[]
+  imageActivities ImageActivity[]
 
   @@unique([sessionId, username])
 }
@@ -89,4 +98,18 @@ model GeneratedImage {
   editCount        Int      @default(0)
   isShared         Boolean  @default(false)
   createdAt        DateTime @default(now())
+  activities       ImageActivity[]
+}
+
+model ImageActivity {
+  activityId  Int              @id @default(autoincrement())
+  image       GeneratedImage   @relation(fields: [imageId], references: [imageId], onDelete: Cascade)
+  imageId     Int
+  student     Student          @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  studentId   Int
+  session     Session          @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId   Int
+  actionType  ImageActionType
+  instruction String
+  createdAt   DateTime         @default(now())
 }

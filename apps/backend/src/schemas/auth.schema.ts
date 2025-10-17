@@ -30,3 +30,7 @@ export const imageGenerationSchema = z.object({
   style: z.string().min(1, '请输入图像风格'),
   sceneDescription: z.string().min(10, '请输入至少10个字符的场景描述')
 });
+
+export const imageEditSchema = z.object({
+  instruction: z.string().min(4, '请输入至少4个字符的编辑描述')
+});

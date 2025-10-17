@@ -2,7 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../middlewares/auth.js';
 import { createSession, getTeacherSessions, getSessionWithStudents } from '../services/session.service.js';
 import { createStudentAccounts, listStudentsForSession } from '../services/student.service.js';
-import { getSessionAnalytics } from '../services/analytics.service.js';
+import { getSessionAnalytics, getSessionActivityFeed } from '../services/analytics.service.js';
 import { createSessionSchema, studentBatchSchema } from '../schemas/auth.schema.js';
 
 export const createTeacherSession = async (req: AuthRequest, res: Response) => {
@@ -98,6 +98,31 @@ export const listSessionStudents = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: '获取学生列表失败' });
+  }
+};
+
+
+export const sessionActivityFeed = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const sessionId = Number(req.params.sessionId);
+  if (Number.isNaN(sessionId)) {
+    return res.status(400).json({ message: '会话ID无效' });
+  }
+
+  try {
+    const session = await getSessionWithStudents(sessionId);
+    if (!session || session.teacherId !== req.user.id) {
+      return res.status(404).json({ message: '未找到会话或无权操作' });
+    }
+
+    const activity = await getSessionActivityFeed(sessionId);
+    res.json({ activity });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: '获取课堂详情失败' });
   }
 };
 

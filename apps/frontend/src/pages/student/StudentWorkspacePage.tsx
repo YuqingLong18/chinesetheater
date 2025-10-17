@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/Card';
 import GradientButton from '../../components/GradientButton';
@@ -48,6 +49,10 @@ const StudentWorkspacePage = () => {
   const [gallery, setGallery] = useState<StudentGalleryItem[]>([]);
   const [loadingImage, setLoadingImage] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editInstruction, setEditInstruction] = useState('');
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [selectedGalleryItem, setSelectedGalleryItem] = useState<StudentGalleryItem | null>(null);
 
   const editRemaining = useMemo(() => (generatedImage ? Math.max(0, 2 - generatedImage.editCount) : 2), [generatedImage]);
 
@@ -96,7 +101,11 @@ const StudentWorkspacePage = () => {
       setPendingMessage('');
     } catch (error) {
       console.error(error);
-      setMessage('发送失败，请稍后重试');
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('发送失败，请稍后重试');
+      }
     } finally {
       setSending(false);
       setTyping(false);
@@ -123,10 +132,68 @@ const StudentWorkspacePage = () => {
       setMessage('图像生成完成');
     } catch (error) {
       console.error(error);
-      setMessage('生成失败，请稍后再试');
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('生成失败，请稍后再试');
+      }
     } finally {
       setLoadingImage(false);
     }
+  };
+
+  const handleOpenEditModal = () => {
+    if (!generatedImage || generatedImage.editCount >= 2) {
+      if (generatedImage && generatedImage.editCount >= 2) {
+        setMessage('编辑次数已达上限');
+      }
+      return;
+    }
+
+    setEditInstruction('');
+    setMessage(null);
+    setEditModalOpen(true);
+  };
+
+  const handleSubmitEdit = async () => {
+    if (!generatedImage) return;
+    if (!editInstruction.trim()) {
+      setMessage('请输入希望编辑的内容');
+      return;
+    }
+
+    setSubmittingEdit(true);
+    setMessage(null);
+
+    try {
+      const response = await client.post(`/student/images/${generatedImage.imageId}/edit`, { instruction: editInstruction });
+      const updatedImage = response.data.image as GeneratedImage;
+      setGeneratedImage(updatedImage);
+      setMessage('图像已根据编辑指令更新');
+      setEditModalOpen(false);
+      setEditInstruction('');
+
+      if (updatedImage.isShared) {
+        const galleryResponse = await client.get('/student/gallery');
+        setGallery(galleryResponse.data.gallery ?? []);
+      }
+    } catch (error) {
+      console.error(error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('编辑失败，请稍后再试');
+      }
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
+  const closeEditModal = () => {
+    if (submittingEdit) return;
+    setEditModalOpen(false);
+    setEditInstruction('');
+    setMessage(null);
   };
 
   const handleShareImage = async () => {
@@ -140,8 +207,20 @@ const StudentWorkspacePage = () => {
       setGallery(response.data.gallery ?? []);
     } catch (error) {
       console.error(error);
-      setMessage('分享失败，请稍后再试');
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('分享失败，请稍后再试');
+      }
     }
+  };
+
+  const handleGalleryItemClick = (item: StudentGalleryItem) => {
+    setSelectedGalleryItem(item);
+  };
+
+  const closeGalleryPreview = () => {
+    setSelectedGalleryItem(null);
   };
 
   const handleLogout = () => {
@@ -252,18 +331,25 @@ const StudentWorkspacePage = () => {
                   <img src={generatedImage.imageUrl} alt={generatedImage.sceneDescription} className="mx-auto max-h-80 rounded-lg object-contain" />
                   <div className="mt-4 space-y-2 text-sm">
                     <p>风格：{generatedImage.style}</p>
-                    <p>场景：{generatedImage.sceneDescription}</p>
+                    <p className="whitespace-pre-line">场景：{generatedImage.sceneDescription}</p>
                     <p>剩余编辑次数：{editRemaining}</p>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <GradientButton
                       variant="primary"
                       disabled={loadingImage || generatedImage.editCount >= 2}
+                      onClick={handleOpenEditModal}
+                    >
+                      继续编辑图像
+                    </GradientButton>
+                    <GradientButton
+                      variant="secondary"
                       onClick={() => {
                         setImageForm({ style: generatedImage.style, sceneDescription: generatedImage.sceneDescription });
+                        setActiveFeature('writing');
                       }}
                     >
-                      重新编辑描述
+                      调整描述重新生成
                     </GradientButton>
                     <GradientButton
                       variant="tertiary"
@@ -286,14 +372,19 @@ const StudentWorkspacePage = () => {
               </header>
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                 {gallery.map((item) => (
-                  <div key={item.imageId} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                  <button
+                    type="button"
+                    key={item.imageId}
+                    onClick={() => handleGalleryItemClick(item)}
+                    className="overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
+                  >
                     <img src={item.imageUrl} alt={item.sceneDescription} className="h-32 w-full object-cover" />
                     <div className="space-y-1 px-4 py-3 text-sm">
                       <p className="font-semibold text-gray-800">作者：{item.username}</p>
                       <p className="text-gray-600">风格：{item.style}</p>
                       <p className="truncate text-gray-500">{item.sceneDescription}</p>
                     </div>
-                  </div>
+                  </button>
                 ))}
                 {gallery.length === 0 ? <p className="text-sm text-gray-500">尚无作品分享，快来成为第一个!</p> : null}
               </div>
@@ -301,6 +392,67 @@ const StudentWorkspacePage = () => {
           ) : null}
         </section>
       </main>
+      {editModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={closeEditModal}>
+          <div
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900">继续编辑图像</h3>
+            <p className="mt-2 text-sm text-gray-600">描述你想要修改的细节，我们会在当前图像基础上进行更新。</p>
+            <div className="mt-4">
+              <TextArea
+                label="编辑指令"
+                placeholder="例如：让人物的衣袍更飘逸，并加入夜色灯光。"
+                value={editInstruction}
+                onChange={(e) => setEditInstruction(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <GradientButton variant="secondary" onClick={closeEditModal} disabled={submittingEdit}>
+                取消
+              </GradientButton>
+              <GradientButton variant="primary" onClick={handleSubmitEdit} disabled={submittingEdit}>
+                {submittingEdit ? '编辑中...' : '提交编辑'}
+              </GradientButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedGalleryItem ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4" onClick={closeGalleryPreview}>
+          <div
+            className="w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="grid gap-6 p-6 md:grid-cols-2">
+              <img
+                src={selectedGalleryItem.imageUrl}
+                alt={selectedGalleryItem.sceneDescription}
+                className="w-full rounded-2xl object-contain"
+              />
+              <div className="space-y-4 text-sm text-gray-700">
+                <div>
+                  <p className="text-base font-semibold text-gray-900">{selectedGalleryItem.username} 的创作</p>
+                  <p className="mt-1 text-gray-500">风格：{selectedGalleryItem.style}</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs font-semibold text-gray-500">场景描述</p>
+                  <p className="mt-2 whitespace-pre-line text-gray-700">{selectedGalleryItem.sceneDescription}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-gray-100 bg-gray-50 px-6 py-4">
+              <GradientButton variant="secondary" onClick={closeGalleryPreview}>
+                关闭
+              </GradientButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </div>
   );
 };

@@ -1,8 +1,8 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../middlewares/auth.js';
-import { chatMessageSchema, imageGenerationSchema } from '../schemas/auth.schema.js';
+import { chatMessageSchema, imageGenerationSchema, imageEditSchema } from '../schemas/auth.schema.js';
 import { sendStudentMessage } from '../services/chat.service.js';
-import { generateImage, listGalleryImages, shareImage } from '../services/image.service.js';
+import { generateImage, listGalleryImages, shareImage, editGeneratedImage } from '../services/image.service.js';
 import { prisma } from '../lib/prisma.js';
 
 export const getCurrentSession = async (req: AuthRequest, res: Response) => {
@@ -84,6 +84,30 @@ export const studentGenerateImage = async (req: AuthRequest, res: Response) => {
     );
 
     res.status(201).json({ image });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const editGeneratedImageController = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student') {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const imageId = Number(req.params.imageId);
+  if (Number.isNaN(imageId)) {
+    return res.status(400).json({ message: '图片ID无效' });
+  }
+
+  const parseResult = imageEditSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ message: parseResult.error.issues[0]?.message ?? '请输入编辑描述' });
+  }
+
+  try {
+    const image = await editGeneratedImage(req.user.id, imageId, parseResult.data.instruction);
+    res.json({ image });
   } catch (error) {
     console.error(error);
     res.status(400).json({ message: (error as Error).message });

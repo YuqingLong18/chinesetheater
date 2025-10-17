@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { prisma } from '../lib/prisma.js';
 import { callOpenRouter } from '../lib/openrouter.js';
 import { env } from '../config/env.js';
@@ -101,6 +102,41 @@ const resolveImageFromChatResponse = (response: OpenRouterChatImageResponse): st
   throw new Error('图像生成失败：响应中缺少图像数据');
 };
 
+const fetchImageAsDataUrl = async (imageUrl: string) => {
+  if (imageUrl.startsWith('data:')) {
+    return imageUrl;
+  }
+
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error('原始图像加载失败');
+  }
+
+  const contentType = response.headers.get('content-type') ?? 'image/png';
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return toDataUrl(buffer.toString('base64'), contentType);
+};
+
+const buildEditMessages = (
+  style: string,
+  baseImage: string,
+  editInstruction: string,
+  sceneDescription: string
+) => [
+  {
+    role: 'system',
+    content: '你是一名图像创作助手，请在保留原画核心风格的基础上进行细节修改。'
+  },
+  {
+    role: 'user',
+    content: [
+      { type: 'text', text: `原始创作风格：${style}。原始场景描述：${sceneDescription}` },
+      { type: 'text', text: `编辑指令：${editInstruction}` },
+      { type: 'image_url', image_url: { url: baseImage } }
+    ]
+  }
+];
+
 const shouldUseImagesEndpoint = (model: string) => model.startsWith('openai/dall-e');
 
 export const generateImage = async (
@@ -185,7 +221,72 @@ export const generateImage = async (
     }
   });
 
+  await prisma.imageActivity.create({
+    data: {
+      imageId: image.imageId,
+      studentId,
+      sessionId,
+      actionType: 'generation',
+      instruction: sceneDescription
+    }
+  });
+
   return image;
+};
+
+export const editGeneratedImage = async (
+  studentId: number,
+  imageId: number,
+  editInstruction: string
+) => {
+  const model = env.OPENROUTER_IMAGE_MODEL;
+  if (shouldUseImagesEndpoint(model)) {
+    throw new Error('当前模型暂不支持图像编辑，请更换支持图像编辑的模型');
+  }
+
+  const image = await prisma.generatedImage.findUnique({ where: { imageId } });
+  if (!image || image.studentId !== studentId) {
+    throw new Error('图片不存在或无权编辑');
+  }
+
+  if (image.editCount >= 2) {
+    throw new Error('编辑次数已用完');
+  }
+
+  const baseImage = await fetchImageAsDataUrl(image.imageUrl);
+
+  const response = await callOpenRouter<OpenRouterChatImageResponse>('/chat/completions', {
+    method: 'POST',
+    body: JSON.stringify({
+      model,
+      messages: buildEditMessages(image.style, baseImage, editInstruction, image.sceneDescription),
+      modalities: ['image']
+    })
+  });
+
+  const updatedImageUrl = resolveImageFromChatResponse(response);
+
+  const updatedImage = await prisma.generatedImage.update({
+    where: { imageId },
+    data: {
+      imageUrl: updatedImageUrl,
+      editCount: { increment: 1 },
+      sceneDescription: `${image.sceneDescription}
+编辑指令：${editInstruction}`
+    }
+  });
+
+  await prisma.imageActivity.create({
+    data: {
+      imageId,
+      studentId,
+      sessionId: image.sessionId,
+      actionType: 'edit',
+      instruction: editInstruction
+    }
+  });
+
+  return updatedImage;
 };
 
 export const shareImage = async (studentId: number, imageId: number) => {

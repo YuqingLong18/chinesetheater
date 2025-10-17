@@ -6,6 +6,7 @@ import {
   studentChatHistory,
   studentGenerateImage,
   shareGeneratedImage,
+  editGeneratedImageController,
   studentGallery
 } from '../controllers/student.controller.js';
 
@@ -18,4 +19,5 @@ studentRouter.post('/chat', studentChat);
 studentRouter.get('/chat/history', studentChatHistory);
 studentRouter.post('/generate-image', studentGenerateImage);
 studentRouter.post('/images/:imageId/share', shareGeneratedImage);
+studentRouter.post('/images/:imageId/edit', editGeneratedImageController);
 studentRouter.get('/gallery', studentGallery);

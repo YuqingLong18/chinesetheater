@@ -1,16 +1,15 @@
 import { prisma } from '../lib/prisma.js';
 import { hashPassword } from '../utils/password.js';
 
-const adjectives = ['春花', '夏雨', '秋月', '冬雪', '星辰', '晨光', '晚霞', '青柳'];
-const nouns = ['云', '风', '竹', '松', '梅', '荷', '燕', '雨'];
+const CHAR_SET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-const getRandomElement = <T>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+const createRandomString = (length: number) =>
+  Array.from({ length }, () => CHAR_SET[Math.floor(Math.random() * CHAR_SET.length)]).join('');
 
-const generateCredential = () => {
-  const name = `${getRandomElement(adjectives)}${getRandomElement(nouns)}${Math.floor(Math.random() * 90 + 10)}`;
-  const password = `${getRandomElement(adjectives)}${Math.floor(Math.random() * 90 + 10)}`;
-  return { username: name.slice(0, 8), password: password.slice(0, 10) };
-};
+const generateCredential = () => ({
+  username: createRandomString(4),
+  password: createRandomString(4)
+});
 
 export const createStudentAccounts = async (sessionId: number, quantity: number) => {
   const created: Array<{ username: string; password: string }> = [];
@@ -43,7 +42,8 @@ export const createStudentAccounts = async (sessionId: number, quantity: number)
       data: {
         sessionId,
         username: credential.username,
-        passwordHash
+        passwordHash,
+        initialPassword: credential.password
       }
     });
 
@@ -60,6 +60,7 @@ export const listStudentsForSession = (sessionId: number) =>
     select: {
       studentId: true,
       username: true,
+      initialPassword: true,
       isUsed: true,
       firstLoginAt: true,
       lastActivityAt: true

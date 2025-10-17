@@ -20,3 +20,30 @@ export interface StudentGalleryItem {
   username: string;
   createdAt?: string;
 }
+
+export interface SessionActivityMessage {
+  messageId: number;
+  studentId: number;
+  username: string;
+  senderType: 'student' | 'ai';
+  content: string;
+  timestamp: string;
+}
+
+export interface SessionActivityImage {
+  activityId: number;
+  imageId: number;
+  studentId: number;
+  username: string;
+  actionType: 'generation' | 'edit';
+  instruction: string;
+  createdAt: string;
+  imageUrl: string;
+  style: string;
+  sceneDescription: string;
+}
+
+export interface SessionActivityFeed {
+  messages: SessionActivityMessage[];
+  images: SessionActivityImage[];
+}
