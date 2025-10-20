@@ -23,6 +23,7 @@ export interface StudentGalleryItem {
 
 export interface SessionActivityMessage {
   messageId: number;
+  conversationId: number;
   studentId: number;
   username: string;
   senderType: 'student' | 'ai';

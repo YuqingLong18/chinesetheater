@@ -5,7 +5,7 @@ import TextInput from '../../components/TextInput';
 import GradientButton from '../../components/GradientButton';
 import client from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
-import type { TeacherSession, StudentCredential, SessionActivityFeed } from '../../types';
+import type { TeacherSession, StudentCredential, SessionActivityFeed, SessionActivityMessage } from '../../types';
 
 interface StudentRow {
   studentId: number;
@@ -67,6 +67,7 @@ const TeacherDashboardPage = () => {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityFilter, setActivityFilter] = useState<'all' | number>('all');
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set<number>());
 
   const currentSession = useMemo(
     () => sessions.find((session) => session.sessionId === selectedSession) || null,
@@ -149,6 +150,24 @@ const TeacherDashboardPage = () => {
     };
   }, [activityModalOpen, selectedSession]);
 
+  useEffect(() => {
+    if (!activityFeed) {
+      setExpandedMessages(new Set<number>());
+      return;
+    }
+
+    setExpandedMessages((prev) => {
+      const validIds = new Set(activityFeed.messages.filter((msg) => msg.senderType === 'student').map((msg) => msg.messageId));
+      const next = new Set<number>();
+      validIds.forEach((id) => {
+        if (prev.has(id)) {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+  }, [activityFeed]);
+
   const activityStudentOptions = useMemo(() => {
     const map = new Map<number, string>();
     students.forEach((student) => map.set(student.studentId, student.username));
@@ -162,14 +181,36 @@ const TeacherDashboardPage = () => {
       .map(([id, name]) => ({ id, name }));
   }, [students, activityFeed]);
 
-  const filteredMessages = useMemo(() => {
+  const filteredPrompts = useMemo<Array<SessionActivityMessage & { aiReply?: SessionActivityMessage }>>(() => {
     if (!activityFeed) {
       return [];
     }
-    if (activityFilter === 'all') {
-      return activityFeed.messages;
-    }
-    return activityFeed.messages.filter((message) => message.studentId === activityFilter);
+
+    const allMessages = activityFeed.messages;
+    const studentMessages = allMessages.filter((message) =>
+      message.senderType === 'student' && (activityFilter === 'all' || message.studentId === activityFilter)
+    );
+
+    const aiMessagesByConversation = new Map<number, SessionActivityMessage[]>();
+    allMessages.forEach((message) => {
+      if (message.senderType === 'ai') {
+        const existing = aiMessagesByConversation.get(message.conversationId) ?? [];
+        existing.push(message);
+        aiMessagesByConversation.set(message.conversationId, existing);
+      }
+    });
+
+    aiMessagesByConversation.forEach((arr) =>
+      arr.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    );
+
+    return studentMessages.map((message) => {
+      const candidates = aiMessagesByConversation.get(message.conversationId) ?? [];
+      const aiReply = candidates.find(
+        (candidate) => new Date(candidate.timestamp).getTime() >= new Date(message.timestamp).getTime()
+      );
+      return { ...message, aiReply };
+    });
   }, [activityFeed, activityFilter]);
 
   const filteredImages = useMemo(() => {
@@ -198,6 +239,18 @@ const TeacherDashboardPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleMessageExpansion = (messageId: number) => {
+    setExpandedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
   };
 
   const handleGenerateStudents = async () => {
@@ -230,6 +283,7 @@ const TeacherDashboardPage = () => {
     setActivityFeed(null);
     setActivityError(null);
     setActivityLoading(false);
+    setExpandedMessages(new Set<number>());
     setActivityModalOpen(true);
   };
 
@@ -239,6 +293,7 @@ const TeacherDashboardPage = () => {
     setActivityError(null);
     setActivityFeed(null);
     setActivityLoading(false);
+    setExpandedMessages(new Set<number>());
   };
 
   const handleLogout = () => {
@@ -507,30 +562,48 @@ const TeacherDashboardPage = () => {
                     <h4 className="text-lg font-semibold text-gray-900">对话记录</h4>
                     <p className="text-xs text-gray-500">显示学生与作者的全部对话内容</p>
                   </div>
-                  {filteredMessages.length === 0 ? (
+                  {filteredPrompts.length === 0 ? (
                     <p className="text-sm text-gray-500">暂无对话记录</p>
                   ) : (
                     <ul className="space-y-3">
-                      {filteredMessages.map((item) => (
-                        <li key={item.messageId} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span className="font-medium text-gray-700">{item.username}</span>
-                            <span>{new Date(item.timestamp).toLocaleString('zh-CN')}</span>
-                          </div>
-                          <div className="mt-2 whitespace-pre-line text-sm text-gray-800">{item.content}</div>
-                          <span
-                            className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs ${
-                              item.senderType === 'student'
-                                ? 'bg-blue-100 text-blue-600'
-                                : 'bg-purple-100 text-purple-600'
-                            }`}
-                          >
-                            {item.senderType === 'student' ? '学生消息' : 'AI 回复'}
-                          </span>
-                        </li>
-                      ))}
+                      {filteredPrompts.map((item) => {
+                        const expanded = expandedMessages.has(item.messageId);
+                        return (
+                          <li key={item.messageId} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <span className="font-medium text-gray-700">{item.username}</span>
+                              <span>{new Date(item.timestamp).toLocaleString('zh-CN')}</span>
+                            </div>
+                            <div className="mt-2 whitespace-pre-line text-sm text-gray-800">{item.content}</div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-600">学生消息</span>
+                              {item.aiReply ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleMessageExpansion(item.messageId)}
+                                  className="rounded-full border border-blue-200 px-2 py-0.5 text-xs text-blue-600 transition hover:bg-blue-100"
+                                >
+                                  {expanded ? '收起AI回复' : '显示AI回复'}
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-400">暂无AI回复</span>
+                              )}
+                            </div>
+                            {expanded && item.aiReply ? (
+                              <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-gray-800">
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                  <span className="font-medium text-purple-700">AI 回复</span>
+                                  <span>{new Date(item.aiReply.timestamp).toLocaleString('zh-CN')}</span>
+                                </div>
+                                <div className="mt-2 whitespace-pre-line">{item.aiReply.content}</div>
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
+
                 </section>
                 <section className="space-y-4">
                   <div>

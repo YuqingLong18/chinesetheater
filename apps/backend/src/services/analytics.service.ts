@@ -67,6 +67,7 @@ export const getSessionActivityFeed = async (sessionId: number) => {
       include: {
         conversation: {
           select: {
+            conversationId: true,
             student: { select: { username: true, studentId: true } }
           }
         }
@@ -85,6 +86,7 @@ export const getSessionActivityFeed = async (sessionId: number) => {
   return {
     messages: messages.map((message) => ({
       messageId: message.messageId,
+      conversationId: message.conversation.conversationId,
       studentId: message.conversation.student.studentId,
       username: message.conversation.student.username,
       senderType: message.senderType,
