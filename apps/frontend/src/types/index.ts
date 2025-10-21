@@ -47,4 +47,25 @@ export interface SessionActivityImage {
 export interface SessionActivityFeed {
   messages: SessionActivityMessage[];
   images: SessionActivityImage[];
+  spacetimeAnalyses: SessionActivitySpacetime[];
+}
+
+export type SpacetimeAnalysisType = 'crossCulture' | 'sameEra' | 'sameGenre';
+
+export interface StudentSpacetimeAnalysis {
+  analysisId: number;
+  author: string;
+  workTitle: string;
+  era: string;
+  genre: string;
+  analysisType: SpacetimeAnalysisType;
+  focusScope?: string | null;
+  promptNotes?: string | null;
+  generatedContent: string;
+  createdAt: string;
+}
+
+export interface SessionActivitySpacetime extends StudentSpacetimeAnalysis {
+  studentId: number;
+  username: string;
 }

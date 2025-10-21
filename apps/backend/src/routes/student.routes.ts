@@ -7,7 +7,9 @@ import {
   studentGenerateImage,
   shareGeneratedImage,
   editGeneratedImageController,
-  studentGallery
+  studentGallery,
+  createStudentSpacetime,
+  listStudentSpacetime
 } from '../controllers/student.controller.js';
 
 export const studentRouter = Router();
@@ -21,3 +23,5 @@ studentRouter.post('/generate-image', studentGenerateImage);
 studentRouter.post('/images/:imageId/share', shareGeneratedImage);
 studentRouter.post('/images/:imageId/edit', editGeneratedImageController);
 studentRouter.get('/gallery', studentGallery);
+studentRouter.post('/spacetime', createStudentSpacetime);
+studentRouter.get('/spacetime', listStudentSpacetime);

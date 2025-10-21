@@ -5,7 +5,13 @@ import TextInput from '../../components/TextInput';
 import GradientButton from '../../components/GradientButton';
 import client from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
-import type { TeacherSession, StudentCredential, SessionActivityFeed, SessionActivityMessage } from '../../types';
+import type {
+  TeacherSession,
+  StudentCredential,
+  SessionActivityFeed,
+  SessionActivityMessage,
+  SpacetimeAnalysisType
+} from '../../types';
 
 interface StudentRow {
   studentId: number;
@@ -43,7 +49,22 @@ interface AnalyticsResponse {
     style: string;
     sceneDescription: string;
   }>;
+  spacetimeSummary: {
+    counts: Record<SpacetimeAnalysisType, number>;
+    recent: Array<{
+      analysisId: number;
+      username: string;
+      analysisType: SpacetimeAnalysisType;
+      createdAt: string;
+    }>;
+};
 }
+
+const spacetimeTypeLabels: Record<SpacetimeAnalysisType, string> = {
+  crossCulture: '中外文学对比',
+  sameEra: '同代作者梳理',
+  sameGenre: '同流派前后对比'
+};
 
 const TeacherDashboardPage = () => {
   const navigate = useNavigate();
@@ -126,7 +147,7 @@ const TeacherDashboardPage = () => {
       try {
         const response = await client.get(`/teacher/sessions/${selectedSession}/activity`);
         if (!cancelled) {
-          setActivityFeed(response.data.activity ?? { messages: [], images: [] });
+          setActivityFeed(response.data.activity ?? { messages: [], images: [], spacetimeAnalyses: [] });
           setActivityError(null);
         }
       } catch (error) {
@@ -174,6 +195,7 @@ const TeacherDashboardPage = () => {
     if (activityFeed) {
       activityFeed.messages.forEach((message) => map.set(message.studentId, message.username));
       activityFeed.images.forEach((item) => map.set(item.studentId, item.username));
+      activityFeed.spacetimeAnalyses.forEach((item) => map.set(item.studentId, item.username));
     }
 
     return Array.from(map.entries())
@@ -221,6 +243,16 @@ const TeacherDashboardPage = () => {
       return activityFeed.images;
     }
     return activityFeed.images.filter((item) => item.studentId === activityFilter);
+  }, [activityFeed, activityFilter]);
+
+  const filteredSpacetime = useMemo(() => {
+    if (!activityFeed) {
+      return [];
+    }
+    if (activityFilter === 'all') {
+      return activityFeed.spacetimeAnalyses;
+    }
+    return activityFeed.spacetimeAnalyses.filter((item) => item.studentId === activityFilter);
   }, [activityFeed, activityFilter]);
 
   const handleCreateSession = async (event: React.FormEvent) => {
@@ -492,6 +524,35 @@ const TeacherDashboardPage = () => {
                 </div>
 
                 <div>
+                  <h3 className="font-semibold text-gray-800">构建时空</h3>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                      中外对比：{analytics.spacetimeSummary.counts.crossCulture}
+                    </span>
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                      同时代：{analytics.spacetimeSummary.counts.sameEra}
+                    </span>
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                      同流派：{analytics.spacetimeSummary.counts.sameGenre}
+                    </span>
+                  </div>
+                  <ul className="mt-2 space-y-1 text-xs text-gray-500">
+                    {analytics.spacetimeSummary.recent.length === 0 ? (
+                      <li>暂无新分析</li>
+                    ) : (
+                      analytics.spacetimeSummary.recent.map((item) => (
+                        <li key={item.analysisId} className="flex justify-between">
+                          <span>
+                            {item.username} · {spacetimeTypeLabels[item.analysisType]}
+                          </span>
+                          <span>{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</span>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+
+                <div>
                   <h3 className="font-semibold text-gray-800">课堂画廊预览</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {analytics.galleryPreview.map((image) => (
@@ -639,6 +700,62 @@ const TeacherDashboardPage = () => {
                               {item.actionType === 'generation' ? `生成描述：${item.instruction}` : `编辑指令：${item.instruction}`}
                             </div>
                             <p className="text-xs text-gray-500">风格：{item.style}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <section className="space-y-4 md:col-span-2">
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">构建时空分析</h4>
+                    <p className="text-xs text-gray-500">查看学生生成的时代、流派与对比提纲</p>
+                  </div>
+                  {filteredSpacetime.length === 0 ? (
+                    <p className="text-sm text-gray-500">暂无构建时空记录</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {filteredSpacetime.map((item) => (
+                        <li
+                          key={item.analysisId}
+                          className="space-y-3 rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-600">
+                                {spacetimeTypeLabels[item.analysisType]}
+                              </span>
+                              <span className="font-medium text-gray-700">{item.username}</span>
+                            </div>
+                            <span>{new Date(item.createdAt).toLocaleString('zh-CN')}</span>
+                          </div>
+                          <div className="space-y-1 text-sm text-gray-700">
+                            <p>
+                              <span className="font-medium">作者：</span>
+                              {item.author}
+                              <span className="mx-2 text-gray-400">·</span>
+                              <span className="font-medium">作品：</span>
+                              {item.workTitle}
+                            </p>
+                            <p>
+                              <span className="font-medium">时代：</span>
+                              {item.era}
+                              <span className="mx-2 text-gray-400">·</span>
+                              <span className="font-medium">流派：</span>
+                              {item.genre}
+                            </p>
+                            {item.focusScope ? (
+                              <p>
+                                <span className="font-medium">聚焦：</span>
+                                {item.focusScope}
+                              </p>
+                            ) : null}
+                            {item.promptNotes ? (
+                              <p className="text-xs text-gray-500">学生补充：{item.promptNotes}</p>
+                            ) : null}
+                          </div>
+                          <div className="rounded-xl bg-gray-50 p-3 text-sm text-gray-800 whitespace-pre-line">
+                            {item.generatedContent}
                           </div>
                         </li>
                       ))}

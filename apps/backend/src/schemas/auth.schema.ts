@@ -34,3 +34,21 @@ export const imageGenerationSchema = z.object({
 export const imageEditSchema = z.object({
   instruction: z.string().min(4, '请输入至少4个字符的编辑描述')
 });
+
+export const spacetimeAnalysisSchema = z.object({
+  author: z.string().min(1, '请输入作者信息'),
+  workTitle: z.string().min(1, '请输入作品名称'),
+  era: z.string().min(1, '请输入时代信息'),
+  genre: z.string().min(1, '请输入流派信息'),
+  analysisType: z.enum(['crossCulture', 'sameEra', 'sameGenre']),
+  focusScope: z
+    .string()
+    .min(2, '请至少输入2个字符')
+    .max(120, '请将描述控制在120字符内')
+    .optional(),
+  promptNotes: z
+    .string()
+    .min(2, '请至少输入2个字符')
+    .max(200, '请将描述控制在200字符内')
+    .optional()
+});

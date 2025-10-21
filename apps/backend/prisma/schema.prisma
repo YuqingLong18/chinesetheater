@@ -17,6 +17,12 @@ enum ImageActionType {
   edit
 }
 
+enum SpacetimeAnalysisType {
+  crossCulture
+  sameEra
+  sameGenre
+}
+
 model Teacher {
   teacherId    Int       @id @default(autoincrement())
   username     String    @unique
@@ -39,6 +45,7 @@ model Session {
   conversations   Conversation[]
   images          GeneratedImage[]
   imageActivities ImageActivity[]
+  spacetimeAnalyses SpacetimeAnalysis[]
 }
 
 
@@ -56,6 +63,7 @@ model Student {
   messages       Message[]
   images         GeneratedImage[]
   imageActivities ImageActivity[]
+  spacetimeAnalyses SpacetimeAnalysis[]
 
   @@unique([sessionId, username])
 }
@@ -112,4 +120,21 @@ model ImageActivity {
   actionType  ImageActionType
   instruction String
   createdAt   DateTime         @default(now())
+}
+
+model SpacetimeAnalysis {
+  analysisId      Int                     @id @default(autoincrement())
+  student         Student                 @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  studentId       Int
+  session         Session                 @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId       Int
+  author          String
+  workTitle       String
+  era             String
+  genre           String
+  analysisType    SpacetimeAnalysisType
+  focusScope      String?
+  promptNotes     String?
+  generatedContent String
+  createdAt        DateTime                @default(now())
 }

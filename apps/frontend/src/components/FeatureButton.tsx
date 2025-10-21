@@ -3,13 +3,14 @@ import clsx from 'clsx';
 
 interface FeatureButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
-  variant?: 'primary' | 'secondary' | 'tertiary';
+  variant?: 'primary' | 'secondary' | 'tertiary' | 'quaternary';
 }
 
 const variantMap: Record<Required<FeatureButtonProps>['variant'], string> = {
   primary: 'from-blue-500 to-purple-600',
   secondary: 'from-green-400 to-blue-500',
-  tertiary: 'from-pink-500 to-orange-400'
+  tertiary: 'from-pink-500 to-orange-400',
+  quaternary: 'from-indigo-500 to-sky-500'
 };
 
 const FeatureButton = ({ children, active, className, variant = 'primary', ...props }: FeatureButtonProps) => (

@@ -1,7 +1,8 @@
 import { prisma } from '../lib/prisma.js';
+import { getSpacetimeAnalytics, listSessionSpacetimeAnalyses } from './spacetime.service.js';
 
 export const getSessionAnalytics = async (sessionId: number) => {
-  const [students, conversations, images] = await Promise.all([
+  const [students, conversations, images, spacetime] = await Promise.all([
     prisma.student.findMany({
       where: { sessionId },
       orderBy: { studentId: 'asc' }
@@ -21,7 +22,8 @@ export const getSessionAnalytics = async (sessionId: number) => {
           select: { username: true }
         }
       }
-    })
+    }),
+    getSpacetimeAnalytics(sessionId)
   ]);
 
   return {
@@ -53,14 +55,15 @@ export const getSessionAnalytics = async (sessionId: number) => {
         imageId: image.imageId,
         username: image.student.username,
         imageUrl: image.imageUrl,
-        style: image.style,
-        sceneDescription: image.sceneDescription
-      }))
+      style: image.style,
+      sceneDescription: image.sceneDescription
+      })),
+    spacetimeSummary: spacetime
   };
 };
 
 export const getSessionActivityFeed = async (sessionId: number) => {
-  const [messages, imageActivities] = await Promise.all([
+  const [messages, imageActivities, spacetime] = await Promise.all([
     prisma.message.findMany({
       where: { conversation: { sessionId } },
       orderBy: { timestamp: 'desc' },
@@ -80,7 +83,8 @@ export const getSessionActivityFeed = async (sessionId: number) => {
         student: { select: { username: true, studentId: true } },
         image: { select: { imageUrl: true, style: true, sceneDescription: true } }
       }
-    })
+    }),
+    listSessionSpacetimeAnalyses(sessionId)
   ]);
 
   return {
@@ -104,6 +108,20 @@ export const getSessionActivityFeed = async (sessionId: number) => {
       imageUrl: activity.image.imageUrl,
       style: activity.image.style,
       sceneDescription: activity.image.sceneDescription
+    })),
+    spacetimeAnalyses: spacetime.map((analysis) => ({
+      analysisId: analysis.analysisId,
+      studentId: analysis.student.studentId,
+      username: analysis.student.username,
+      analysisType: analysis.analysisType,
+      author: analysis.author,
+      workTitle: analysis.workTitle,
+      era: analysis.era,
+      genre: analysis.genre,
+      focusScope: analysis.focusScope,
+      promptNotes: analysis.promptNotes,
+      generatedContent: analysis.generatedContent,
+      createdAt: analysis.createdAt
     }))
   };
 };

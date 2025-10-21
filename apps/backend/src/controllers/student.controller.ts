@@ -1,8 +1,9 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../middlewares/auth.js';
-import { chatMessageSchema, imageGenerationSchema, imageEditSchema } from '../schemas/auth.schema.js';
+import { chatMessageSchema, imageGenerationSchema, imageEditSchema, spacetimeAnalysisSchema } from '../schemas/auth.schema.js';
 import { sendStudentMessage } from '../services/chat.service.js';
 import { generateImage, listGalleryImages, shareImage, editGeneratedImage } from '../services/image.service.js';
+import { createSpacetimeAnalysis, listStudentSpacetimeAnalyses } from '../services/spacetime.service.js';
 import { prisma } from '../lib/prisma.js';
 
 export const getCurrentSession = async (req: AuthRequest, res: Response) => {
@@ -144,5 +145,52 @@ export const studentGallery = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: '加载画廊失败' });
+  }
+};
+
+export const createStudentSpacetime = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const payload = {
+    author: String(req.body?.author ?? '').trim(),
+    workTitle: String(req.body?.workTitle ?? '').trim(),
+    era: String(req.body?.era ?? '').trim(),
+    genre: String(req.body?.genre ?? '').trim(),
+    analysisType: req.body?.analysisType,
+    focusScope: typeof req.body?.focusScope === 'string' && req.body.focusScope.trim().length > 0
+      ? req.body.focusScope.trim()
+      : undefined,
+    promptNotes: typeof req.body?.promptNotes === 'string' && req.body.promptNotes.trim().length > 0
+      ? req.body.promptNotes.trim()
+      : undefined
+  };
+
+  const parseResult = spacetimeAnalysisSchema.safeParse(payload);
+  if (!parseResult.success) {
+    return res.status(400).json({ message: parseResult.error.issues[0]?.message ?? '请输入完整信息' });
+  }
+
+  try {
+    const analysis = await createSpacetimeAnalysis(req.user.id, req.user.sessionId, parseResult.data);
+    res.status(201).json({ analysis });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const listStudentSpacetime = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  try {
+    const analyses = await listStudentSpacetimeAnalyses(req.user.id, req.user.sessionId);
+    res.json({ analyses });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: '加载构建时空记录失败' });
   }
 };
