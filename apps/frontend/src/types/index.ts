@@ -103,3 +103,71 @@ export interface LifeJourneyResponse {
   highlights?: string[];
   routeNotes?: string | null;
 }
+
+export type WorkshopMode = 'relay' | 'adaptation';
+export type WorkshopStatus = 'active' | 'completed' | 'archived';
+export type WorkshopContributionStatus = 'accepted' | 'pending' | 'retracted';
+export type WorkshopVoteType = 'keep' | 'rewrite';
+
+export interface WorkshopMember {
+  memberId: number;
+  roomId: number;
+  role: 'teacher' | 'student';
+  studentId?: number | null;
+  teacherId?: number | null;
+  nickname: string;
+  orderIndex: number;
+  isActive: boolean;
+  joinedAt: string;
+}
+
+export interface WorkshopContribution {
+  contributionId: number;
+  roomId: number;
+  memberId: number;
+  orderIndex: number;
+  content: string;
+  aiFeedback?: unknown;
+  status: WorkshopContributionStatus;
+  createdAt: string;
+  member: WorkshopMember;
+  votes: WorkshopVote[];
+}
+
+export interface WorkshopVote {
+  voteId: number;
+  contributionId: number;
+  memberId: number;
+  voteType: WorkshopVoteType;
+  createdAt: string;
+}
+
+export interface WorkshopChatMessage {
+  messageId: number;
+  roomId: number;
+  memberId?: number | null;
+  messageType: 'message' | 'system';
+  content: string;
+  createdAt: string;
+  member?: WorkshopMember | null;
+}
+
+export interface WorkshopRoomSummary {
+  roomId: number;
+  code: string;
+  title: string;
+  mode: WorkshopMode;
+  theme?: string | null;
+  meterRequirement?: string | null;
+  status: WorkshopStatus;
+  currentTurnOrder?: number | null;
+  maxParticipants: number;
+  targetLines?: number | null;
+  members: WorkshopMember[];
+  contributions?: WorkshopContribution[];
+  chats?: WorkshopChatMessage[];
+  originalTitle?: string | null;
+  originalContent?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -9,6 +9,7 @@ import TextInput from '../../components/TextInput';
 import ChatBubble from '../../components/ChatBubble';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 import LifeJourneyMap from '../../components/LifeJourneyMap';
+import WorkshopPanel from '../../components/WorkshopPanel';
 import { MapPinIcon, CalendarDaysIcon, BookOpenIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import client from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
@@ -42,7 +43,7 @@ interface GeneratedImage {
   isShared: boolean;
 }
 
-type FeatureKey = 'chat' | 'writing' | 'analysis' | 'journey' | 'gallery';
+type FeatureKey = 'chat' | 'writing' | 'analysis' | 'journey' | 'workshop' | 'gallery';
 
 interface ImageVersion {
   imageUrl: string;
@@ -536,6 +537,7 @@ const StudentWorkspacePage = () => {
     { key: 'writing' as FeatureKey, label: '描述性写作', variant: 'secondary' as const },
     { key: 'analysis' as FeatureKey, label: '对比分析', variant: 'quaternary' as const },
     { key: 'journey' as FeatureKey, label: '人生行迹', variant: 'secondary' as const },
+    { key: 'workshop' as FeatureKey, label: '协作创作', variant: 'secondary' as const },
     { key: 'gallery' as FeatureKey, label: '课堂画廊', variant: 'tertiary' as const }
   ];
 
@@ -823,6 +825,8 @@ const StudentWorkspacePage = () => {
               )}
             </Card>
           ) : null}
+
+          {activeFeature === 'workshop' ? <WorkshopPanel /> : null}
 
           {activeFeature === 'analysis' ? (
             <Card className="space-y-5">

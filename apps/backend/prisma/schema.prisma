@@ -24,6 +24,38 @@ enum SpacetimeAnalysisType {
   custom
 }
 
+enum WorkshopMode {
+  relay
+  adaptation
+}
+
+enum WorkshopStatus {
+  active
+  completed
+  archived
+}
+
+enum WorkshopMemberRole {
+  teacher
+  student
+}
+
+enum WorkshopContributionStatus {
+  accepted
+  pending
+  retracted
+}
+
+enum WorkshopChatType {
+  message
+  system
+}
+
+enum WorkshopVoteType {
+  keep
+  rewrite
+}
+
 model Teacher {
   teacherId    Int       @id @default(autoincrement())
   username     String    @unique
@@ -139,4 +171,87 @@ model SpacetimeAnalysis {
   customInstruction String?
   generatedContent String
   createdAt        DateTime                @default(now())
+}
+
+model WorkshopRoom {
+  roomId             Int                   @id @default(autoincrement())
+  code               String                @unique
+  title              String
+  mode               WorkshopMode
+  theme              String?
+  originalTitle      String?
+  originalContent    String?
+  meterRequirement   String?
+  maxParticipants    Int
+  targetLines        Int?
+  status             WorkshopStatus        @default(active)
+  currentTurnOrder   Int?
+  timeLimitMinutes   Int?
+  creatorTeacherId   Int?
+  creatorStudentId   Int?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  members            WorkshopMember[]
+  contributions      WorkshopContribution[]
+  chats              WorkshopChatMessage[]
+}
+
+model WorkshopMember {
+  memberId   Int                 @id @default(autoincrement())
+  roomId     Int
+  room       WorkshopRoom        @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  role       WorkshopMemberRole
+  studentId  Int?
+  teacherId  Int?
+  nickname   String
+  orderIndex Int
+  isActive   Boolean             @default(true)
+  joinedAt   DateTime            @default(now())
+  contributions WorkshopContribution[]
+  chats      WorkshopChatMessage[]
+  votes      WorkshopContributionVote[]
+
+  @@index([roomId])
+}
+
+model WorkshopContribution {
+  contributionId Int                         @id @default(autoincrement())
+  roomId         Int
+  room           WorkshopRoom                @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  memberId       Int
+  member         WorkshopMember              @relation(fields: [memberId], references: [memberId], onDelete: Cascade)
+  orderIndex     Int
+  content        String
+  aiFeedback     Json?
+  status         WorkshopContributionStatus @default(accepted)
+  createdAt      DateTime                   @default(now())
+  votes          WorkshopContributionVote[]
+
+  @@index([roomId])
+  @@index([memberId])
+}
+
+model WorkshopChatMessage {
+  messageId Int               @id @default(autoincrement())
+  roomId    Int
+  room      WorkshopRoom      @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  memberId  Int?
+  member    WorkshopMember?   @relation(fields: [memberId], references: [memberId], onDelete: SetNull)
+  messageType WorkshopChatType @default(message)
+  content   String
+  createdAt DateTime           @default(now())
+
+  @@index([roomId])
+}
+
+model WorkshopContributionVote {
+  voteId         Int                @id @default(autoincrement())
+  contributionId Int
+  contribution   WorkshopContribution @relation(fields: [contributionId], references: [contributionId], onDelete: Cascade)
+  memberId       Int
+  member         WorkshopMember     @relation(fields: [memberId], references: [memberId], onDelete: Cascade)
+  voteType       WorkshopVoteType
+  createdAt      DateTime           @default(now())
+
+  @@unique([contributionId, memberId])
 }

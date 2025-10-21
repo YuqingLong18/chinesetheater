@@ -13,6 +13,16 @@ import {
   listStudentSpacetime,
   createLifeJourney
 } from '../controllers/student.controller.js';
+import {
+  createWorkshopRoom,
+  listWorkshopRooms,
+  joinWorkshopRoom,
+  getWorkshopRoom,
+  streamWorkshopRoom,
+  submitWorkshopContribution,
+  postWorkshopChat,
+  voteContributionRewrite
+} from '../controllers/workshop.controller.js';
 
 export const studentRouter = Router();
 
@@ -29,3 +39,11 @@ studentRouter.get('/gallery', studentGallery);
 studentRouter.post('/spacetime', createStudentSpacetime);
 studentRouter.get('/spacetime', listStudentSpacetime);
 studentRouter.post('/life-journey', createLifeJourney);
+studentRouter.post('/workshops', createWorkshopRoom);
+studentRouter.get('/workshops', listWorkshopRooms);
+studentRouter.post('/workshops/join', joinWorkshopRoom);
+studentRouter.get('/workshops/:roomId', getWorkshopRoom);
+studentRouter.get('/workshops/:roomId/stream', streamWorkshopRoom);
+studentRouter.post('/workshops/:roomId/contributions', submitWorkshopContribution);
+studentRouter.post('/workshops/:roomId/chat', postWorkshopChat);
+studentRouter.post('/workshops/:roomId/votes', voteContributionRewrite);
