@@ -50,7 +50,7 @@ export interface SessionActivityFeed {
   spacetimeAnalyses: SessionActivitySpacetime[];
 }
 
-export type SpacetimeAnalysisType = 'crossCulture' | 'sameEra' | 'sameGenre';
+export type SpacetimeAnalysisType = 'crossCulture' | 'sameEra' | 'sameGenre' | 'custom';
 
 export interface StudentSpacetimeAnalysis {
   analysisId: number;
@@ -61,6 +61,7 @@ export interface StudentSpacetimeAnalysis {
   analysisType: SpacetimeAnalysisType;
   focusScope?: string | null;
   promptNotes?: string | null;
+  customInstruction?: string | null;
   generatedContent: string;
   createdAt: string;
 }
@@ -68,4 +69,37 @@ export interface StudentSpacetimeAnalysis {
 export interface SessionActivitySpacetime extends StudentSpacetimeAnalysis {
   studentId: number;
   username: string;
+}
+
+export interface LifeJourneyGeography {
+  terrain: string;
+  vegetation: string;
+  water: string;
+  climate: string;
+}
+
+export interface LifeJourneyPoem {
+  title: string;
+  content: string;
+}
+
+export interface LifeJourneyLocation {
+  id: number;
+  name: string;
+  modernName?: string | null;
+  latitude: number;
+  longitude: number;
+  period: string;
+  description: string;
+  events: string[];
+  geography: LifeJourneyGeography;
+  poems: LifeJourneyPoem[];
+}
+
+export interface LifeJourneyResponse {
+  heroName: string;
+  summary: string;
+  locations: LifeJourneyLocation[];
+  highlights?: string[];
+  routeNotes?: string | null;
 }

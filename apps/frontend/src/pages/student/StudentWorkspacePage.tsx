@@ -7,9 +7,18 @@ import FeatureButton from '../../components/FeatureButton';
 import TextArea from '../../components/TextArea';
 import TextInput from '../../components/TextInput';
 import ChatBubble from '../../components/ChatBubble';
+import MarkdownRenderer from '../../components/MarkdownRenderer';
+import LifeJourneyMap from '../../components/LifeJourneyMap';
+import { MapPinIcon, CalendarDaysIcon, BookOpenIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import client from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
-import type { StudentGalleryItem, StudentSpacetimeAnalysis, SpacetimeAnalysisType } from '../../types';
+import type {
+  StudentGalleryItem,
+  StudentSpacetimeAnalysis,
+  SpacetimeAnalysisType,
+  LifeJourneyResponse,
+  LifeJourneyLocation
+} from '../../types';
 
 interface ChatMessage {
   messageId: number;
@@ -33,24 +42,34 @@ interface GeneratedImage {
   isShared: boolean;
 }
 
-type FeatureKey = 'chat' | 'writing' | 'spacetime' | 'gallery';
+type FeatureKey = 'chat' | 'writing' | 'analysis' | 'journey' | 'gallery';
+
+interface ImageVersion {
+  imageUrl: string;
+  style: string;
+  sceneDescription: string;
+  editCount: number;
+}
 
 const spacetimeTypeLabels: Record<SpacetimeAnalysisType, string> = {
   crossCulture: '中外文学对比',
   sameEra: '同代作者作品梳理',
-  sameGenre: '同流派前后对比'
+  sameGenre: '同流派前后对比',
+  custom: '自定义方案'
 };
 
 const spacetimeTypeDescriptions: Record<SpacetimeAnalysisType, string> = {
   crossCulture: '选择一个文明或地域，与中国文学作品进行互文对比。',
   sameEra: '了解同一时代的其他作者与其代表作品，建立时间坐标。',
-  sameGenre: '追踪同一流派在不同时期的传承与变化。'
+  sameGenre: '追踪同一流派在不同时期的传承与变化。',
+  custom: '完全按你的想法组织分析结构，请在下方详细说明。'
 };
 
 const focusScopePlaceholder: Record<SpacetimeAnalysisType, string> = {
   crossCulture: '例如：日本、伊斯兰世界、欧洲',
   sameEra: '例如：其他明末清初诗人',
-  sameGenre: '例如：早期山水派 / 后期山水派'
+  sameGenre: '例如：早期山水派 / 后期山水派',
+  custom: '例如：跨媒体改编比较 / 主题与修辞对照'
 };
 
 const StudentWorkspacePage = () => {
@@ -71,21 +90,30 @@ const StudentWorkspacePage = () => {
   const [editInstruction, setEditInstruction] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [selectedGalleryItem, setSelectedGalleryItem] = useState<StudentGalleryItem | null>(null);
-  const [spacetimeAnalyses, setSpacetimeAnalyses] = useState<StudentSpacetimeAnalysis[]>([]);
-  const [spacetimeLoading, setSpacetimeLoading] = useState(false);
-  const [spacetimeForm, setSpacetimeForm] = useState({
+  const [analysisRecords, setAnalysisRecords] = useState<StudentSpacetimeAnalysis[]>([]);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisForm, setAnalysisForm] = useState({
     author: '',
     workTitle: '',
     era: '',
     genre: '',
     analysisType: 'crossCulture' as SpacetimeAnalysisType,
     focusScope: '',
-    promptNotes: ''
+    promptNotes: '',
+    customInstruction: ''
   });
+  const [editComparison, setEditComparison] = useState<{
+    previous: ImageVersion;
+    updated: GeneratedImage;
+  } | null>(null);
+  const [revertingEdit, setRevertingEdit] = useState(false);
+  const [journeyData, setJourneyData] = useState<LifeJourneyResponse | null>(null);
+  const [journeyLoading, setJourneyLoading] = useState(false);
+  const [journeyLocation, setJourneyLocation] = useState<LifeJourneyLocation | null>(null);
 
   const editRemaining = useMemo(() => (generatedImage ? Math.max(0, 2 - generatedImage.editCount) : 2), [generatedImage]);
-  const focusScopeHint = focusScopePlaceholder[spacetimeForm.analysisType];
-  const analysisTypeHint = spacetimeTypeDescriptions[spacetimeForm.analysisType];
+  const focusScopeHint = focusScopePlaceholder[analysisForm.analysisType];
+  const analysisTypeHint = spacetimeTypeDescriptions[analysisForm.analysisType];
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -118,7 +146,7 @@ const StudentWorkspacePage = () => {
     const fetchSpacetime = async () => {
       try {
         const response = await client.get('/student/spacetime');
-        setSpacetimeAnalyses(response.data.analyses ?? []);
+        setAnalysisRecords(response.data.analyses ?? []);
       } catch (error) {
         console.error(error);
       }
@@ -135,12 +163,24 @@ const StudentWorkspacePage = () => {
       return;
     }
 
-    setSpacetimeForm((prev) => ({
+    setAnalysisForm((prev) => ({
       ...prev,
       author: prev.author || sessionInfo.authorName,
       workTitle: prev.workTitle || sessionInfo.literatureTitle
     }));
   }, [sessionInfo]);
+
+  useEffect(() => {
+    if (activeFeature === 'journey' && !journeyData && !journeyLoading) {
+      handleGenerateJourney(true);
+    }
+  }, [activeFeature, journeyData, journeyLoading]);
+
+  useEffect(() => {
+    if (journeyData) {
+      setJourneyLocation(journeyData.locations[0] ?? null);
+    }
+  }, [journeyData]);
 
   const handleSendMessage = async () => {
     if (!pendingMessage.trim()) return;
@@ -182,6 +222,7 @@ const StudentWorkspacePage = () => {
     try {
       const response = await client.post('/student/generate-image', imageForm);
       setGeneratedImage(response.data.image);
+      setEditComparison(null);
       setMessage('图像生成完成');
     } catch (error) {
       console.error(error);
@@ -221,8 +262,12 @@ const StudentWorkspacePage = () => {
     try {
       const response = await client.post(`/student/images/${generatedImage.imageId}/edit`, { instruction: editInstruction });
       const updatedImage = response.data.image as GeneratedImage;
+      const previousImage = response.data.previousImage as ImageVersion | undefined;
       setGeneratedImage(updatedImage);
-      setMessage('图像已根据编辑指令更新');
+      if (previousImage) {
+        setEditComparison({ previous: previousImage, updated: updatedImage });
+      }
+      setMessage('图像已根据编辑指令更新，请确认是否保留。');
       setEditModalOpen(false);
       setEditInstruction('');
 
@@ -268,20 +313,26 @@ const StudentWorkspacePage = () => {
     }
   };
 
-  const handleGenerateSpacetime = async () => {
-    const author = spacetimeForm.author.trim();
-    const workTitle = spacetimeForm.workTitle.trim();
-    const era = spacetimeForm.era.trim();
-    const genre = spacetimeForm.genre.trim();
-    const focusScope = spacetimeForm.focusScope.trim();
-    const promptNotes = spacetimeForm.promptNotes.trim();
+  const handleGenerateAnalysis = async () => {
+    const author = analysisForm.author.trim();
+    const workTitle = analysisForm.workTitle.trim();
+    const era = analysisForm.era.trim();
+    const genre = analysisForm.genre.trim();
+    const focusScope = analysisForm.focusScope.trim();
+    const promptNotes = analysisForm.promptNotes.trim();
+    const customInstruction = analysisForm.customInstruction.trim();
 
-    if (!author || !workTitle || !era || !genre) {
+    if (analysisForm.analysisType !== 'custom' && (!author || !workTitle || !era || !genre)) {
       setMessage('请完整填写作者、作品、时代与流派信息');
       return;
     }
 
-    setSpacetimeLoading(true);
+    if (analysisForm.analysisType === 'custom' && customInstruction.length === 0) {
+      setMessage('请详细描述自定义分析的要求');
+      return;
+    }
+
+    setAnalysisLoading(true);
     setMessage(null);
 
     try {
@@ -290,15 +341,16 @@ const StudentWorkspacePage = () => {
         workTitle,
         era,
         genre,
-        analysisType: spacetimeForm.analysisType,
+        analysisType: analysisForm.analysisType,
         focusScope: focusScope.length > 0 ? focusScope : undefined,
-        promptNotes: promptNotes.length > 0 ? promptNotes : undefined
+        promptNotes: promptNotes.length > 0 ? promptNotes : undefined,
+        customInstruction: customInstruction.length > 0 ? customInstruction : undefined
       };
 
       const response = await client.post('/student/spacetime', payload);
       const analysis = response.data.analysis as StudentSpacetimeAnalysis;
-      setSpacetimeAnalyses((prev) => [analysis, ...prev]);
-      setMessage('构建时空分析已生成');
+      setAnalysisRecords((prev) => [analysis, ...prev]);
+      setMessage('对比分析已生成');
     } catch (error) {
       console.error(error);
       if (error instanceof AxiosError && error.response?.data?.message) {
@@ -307,12 +359,167 @@ const StudentWorkspacePage = () => {
         setMessage('生成失败，请稍后再试');
       }
     } finally {
-      setSpacetimeLoading(false);
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleDownloadAnalysis = (analysis: StudentSpacetimeAnalysis) => {
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const detailRows: Array<{ label: string; value?: string | null }> = [
+      { label: '分析方向', value: spacetimeTypeLabels[analysis.analysisType] },
+      { label: '作者', value: analysis.author },
+      { label: '作品', value: analysis.workTitle },
+      { label: '时代', value: analysis.era },
+      { label: '流派', value: analysis.genre },
+      { label: '聚焦范围', value: analysis.focusScope },
+      { label: '学生补充', value: analysis.promptNotes },
+      { label: '自定义指令', value: analysis.customInstruction }
+    ];
+
+    const detailHtml = detailRows
+      .filter((row) => row.value && row.value.trim().length > 0)
+      .map(
+        (row) => `
+          <tr>
+            <th>${escapeHtml(row.label)}</th>
+            <td>${escapeHtml(row.value ?? '')}</td>
+          </tr>`
+      )
+      .join('\n');
+
+    const sections = analysis.generatedContent
+      .split(/\n{2,}/)
+      .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`) // preserve line breaks
+      .join('\n');
+
+    const timestamp = new Date(analysis.createdAt).toLocaleString('zh-CN');
+    const safeAuthor = analysis.author.replace(/[^\u4e00-\u9fa5A-Za-z0-9_-]+/g, '');
+    const fileStamp = new Date(analysis.createdAt).toISOString().slice(0, 19).replace(/[:T]/g, '-');
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>对比分析：${escapeHtml(analysis.author)}《${escapeHtml(analysis.workTitle)}》</title>
+    <style>
+      body { font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif; margin: 40px; color: #1f2937; }
+      header { text-align: center; margin-bottom: 32px; }
+      h1 { font-size: 24px; margin-bottom: 4px; }
+      time { color: #6b7280; font-size: 14px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+      th { text-align: left; width: 120px; color: #4b5563; padding: 6px 0; }
+      td { padding: 6px 0; border-bottom: 1px solid #e5e7eb; }
+      section { page-break-inside: avoid; }
+      p { line-height: 1.7; margin: 14px 0; }
+      blockquote { border-left: 4px solid #c4b5fd; padding: 0 16px; color: #4c1d95; }
+      @media print {
+        body { margin: 20px 32px; }
+        header { margin-bottom: 16px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>对比分析提纲</h1>
+      <time>生成时间：${escapeHtml(timestamp)}</time>
+    </header>
+    <section>
+      <table>
+        ${detailHtml}
+      </table>
+    </section>
+    <section>
+      ${sections}
+    </section>
+  </body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `对比分析-${safeAuthor || '自定义'}-${fileStamp}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleGenerateJourney = async (silent = false) => {
+    if (!silent) {
+      setMessage(null);
+    }
+    setJourneyLoading(true);
+
+    try {
+      const response = await client.post('/student/life-journey', {});
+      const journey = response.data.journey as LifeJourneyResponse;
+      setJourneyData(journey);
+      setJourneyLocation(journey.locations[0] ?? null);
+      if (!silent) {
+        setMessage('人生行迹已更新');
+      }
+    } catch (error) {
+      console.error(error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('生成人生行迹失败，请稍后再试');
+      }
+    } finally {
+      setJourneyLoading(false);
     }
   };
 
   const handleGalleryItemClick = (item: StudentGalleryItem) => {
     setSelectedGalleryItem(item);
+  };
+
+  const handleKeepEditedImage = () => {
+    setEditComparison(null);
+    setMessage('已保留当前版本');
+  };
+
+  const handleDiscardEditedImage = async () => {
+    if (!editComparison || !generatedImage) {
+      return;
+    }
+    setRevertingEdit(true);
+    setMessage(null);
+
+    try {
+      const response = await client.post(`/student/images/${generatedImage.imageId}/revert`, {
+        previousImageUrl: editComparison.previous.imageUrl,
+        previousSceneDescription: editComparison.previous.sceneDescription,
+        previousStyle: editComparison.previous.style,
+        previousEditCount: editComparison.previous.editCount,
+        currentImageUrl: editComparison.updated.imageUrl
+      });
+      const revertedImage = response.data.image as GeneratedImage;
+      setGeneratedImage(revertedImage);
+      setEditComparison(null);
+      setMessage('已恢复为编辑前的版本');
+      if (revertedImage.isShared) {
+        const galleryResponse = await client.get('/student/gallery');
+        setGallery(galleryResponse.data.gallery ?? []);
+      }
+    } catch (error) {
+      console.error(error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('撤销失败，请稍后再试');
+      }
+    } finally {
+      setRevertingEdit(false);
+    }
   };
 
   const closeGalleryPreview = () => {
@@ -327,7 +534,8 @@ const StudentWorkspacePage = () => {
   const featureButtons = [
     { key: 'chat' as FeatureKey, label: '与作者对话', variant: 'primary' as const },
     { key: 'writing' as FeatureKey, label: '描述性写作', variant: 'secondary' as const },
-    { key: 'spacetime' as FeatureKey, label: '构建时空', variant: 'quaternary' as const },
+    { key: 'analysis' as FeatureKey, label: '对比分析', variant: 'quaternary' as const },
+    { key: 'journey' as FeatureKey, label: '人生行迹', variant: 'secondary' as const },
     { key: 'gallery' as FeatureKey, label: '课堂画廊', variant: 'tertiary' as const }
   ];
 
@@ -458,52 +666,224 @@ const StudentWorkspacePage = () => {
                   </div>
                 </div>
               ) : null}
+
+              {editComparison ? (
+                <div className="rounded-xl border border-purple-200 bg-white p-4 shadow-sm">
+                  <h3 className="text-base font-semibold text-gray-900">版本对比</h3>
+                  <p className="mt-1 text-xs text-gray-500">对比编辑前后的效果，确认是否保留新的版本。</p>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">编辑前</span>
+                      <img
+                        src={editComparison.previous.imageUrl}
+                        alt={editComparison.previous.sceneDescription}
+                        className="h-60 w-full rounded-lg object-contain"
+                      />
+                      <p className="text-xs text-gray-500">编辑次数：{editComparison.previous.editCount}</p>
+                      <p className="text-xs text-gray-500">描述：{editComparison.previous.sceneDescription}</p>
+                    </div>
+                    <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                      <span className="inline-flex items-center rounded-full bg-purple-200 px-2 py-0.5 text-xs text-purple-700">编辑后</span>
+                      <img
+                        src={editComparison.updated.imageUrl}
+                        alt={editComparison.updated.sceneDescription}
+                        className="h-60 w-full rounded-lg object-contain"
+                      />
+                      <p className="text-xs text-gray-500">编辑次数：{editComparison.updated.editCount}</p>
+                      <p className="text-xs text-gray-500">描述：{editComparison.updated.sceneDescription}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <GradientButton variant="primary" onClick={handleKeepEditedImage} disabled={revertingEdit}>
+                      保留此版本
+                    </GradientButton>
+                    <GradientButton variant="secondary" onClick={handleDiscardEditedImage} disabled={revertingEdit}>
+                      {revertingEdit ? '撤销中...' : '放弃此次编辑'}
+                    </GradientButton>
+                  </div>
+                </div>
+              ) : null}
             </Card>
           ) : null}
 
-          {activeFeature === 'spacetime' ? (
+          {activeFeature === 'journey' ? (
+            <Card className="space-y-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">人生行迹 - {journeyData?.heroName ?? sessionInfo?.authorName ?? '主角'}</h2>
+                  <p className="text-sm text-gray-500">结合课堂人物自动生成的行迹地图，点击地点查看详细信息。</p>
+                </div>
+                <GradientButton variant="primary" onClick={() => handleGenerateJourney()} disabled={journeyLoading}>
+                  {journeyLoading ? '生成中...' : journeyData ? '重新生成' : '生成行迹'}
+                </GradientButton>
+              </div>
+
+              {journeyLoading ? (
+                <div className="flex h-64 flex-col items-center justify-center gap-2 text-sm text-gray-500">
+                  <span className="inline-flex h-10 w-10 animate-spin rounded-full border-2 border-blue-200 border-t-blue-500" />
+                  正在构建人生行迹，请稍候…
+                </div>
+              ) : journeyData ? (
+                <>
+                  <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
+                    <div className="h-[520px] overflow-hidden rounded-2xl border border-gray-200">
+                      <LifeJourneyMap locations={journeyData.locations} onSelect={setJourneyLocation} />
+                    </div>
+                    <aside className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                      {(() => {
+                        const current = journeyLocation ?? journeyData.locations[0];
+                        if (!current) {
+                          return <p className="text-sm text-gray-500">暂未找到行迹数据。</p>;
+                        }
+                        return (
+                          <div className="space-y-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h3 className="text-lg font-semibold text-blue-600">{current.name}</h3>
+                                {current.modernName ? (
+                                  <p className="text-xs text-gray-500">今 {current.modernName}</p>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setJourneyLocation(null)}
+                                className="text-xs text-gray-400 transition hover:text-gray-600"
+                              >
+                                重置
+                              </button>
+                            </div>
+                            <div className="rounded-xl bg-white p-3 shadow-sm">
+                              <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                                <CalendarDaysIcon className="h-4 w-4" />
+                                <span>{current.period}</span>
+                              </div>
+                              <p className="mt-2 text-sm text-gray-600">{current.description}</p>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                <MapPinIcon className="h-4 w-4 text-blue-500" />
+                                生平事迹
+                              </div>
+                              <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
+                                {current.events.map((event, index) => (
+                                  <li key={index}>{event}</li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                <SparklesIcon className="h-4 w-4 text-blue-500" />
+                                地理风物
+                              </div>
+                              <div className="rounded-lg border border-dashed border-blue-200 bg-white p-3 text-xs text-gray-600">
+                                <p><strong>地形：</strong>{current.geography.terrain}</p>
+                                <p className="mt-1"><strong>植被：</strong>{current.geography.vegetation}</p>
+                                <p className="mt-1"><strong>水域：</strong>{current.geography.water}</p>
+                                <p className="mt-1"><strong>气候：</strong>{current.geography.climate}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                <BookOpenIcon className="h-4 w-4 text-blue-500" />
+                                代表诗作
+                              </div>
+                              {current.poems.map((poem, index) => (
+                                <div key={index} className="rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 p-3 text-sm text-gray-700">
+                                  <p className="font-semibold text-blue-600">《{poem.title}》</p>
+                                  <p className="mt-1 whitespace-pre-line leading-relaxed">{poem.content}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </aside>
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                    <h3 className="text-lg font-semibold text-gray-900">行迹概览</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600">{journeyData.summary}</p>
+                    {journeyData.highlights && journeyData.highlights.length > 0 ? (
+                      <div className="mt-4 space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-700">关键看点</h4>
+                        <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
+                          {journeyData.highlights.map((item, idx) => (
+                            <li key={idx}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {journeyData.routeNotes ? (
+                      <p className="mt-3 text-xs text-gray-500">{journeyData.routeNotes}</p>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">点击“生成行迹”即可查看本节作者的互动式人生地图。</p>
+              )}
+            </Card>
+          ) : null}
+
+          {activeFeature === 'analysis' ? (
             <Card className="space-y-5">
               <header>
-                <h2 className="text-xl font-semibold text-gray-900">构建时空 - 建立文学坐标</h2>
-                <p className="text-sm text-gray-500">结合课堂主题，生成时代、流派与跨文化的分析提纲。</p>
+                <h2 className="text-xl font-semibold text-gray-900">对比分析 - 建立多维文学坐标</h2>
+                <p className="text-sm text-gray-500">结合课堂主题，生成时代、流派、跨文化或自定义的分析提纲。</p>
+                <div className="mt-3">
+                  <GradientButton
+                    variant="secondary"
+                    onClick={() =>
+                      setAnalysisForm((prev) => ({
+                        ...prev,
+                        analysisType: 'custom',
+                        customInstruction: prev.customInstruction || '请在此填写你希望生成的分析结构与重点。'
+                      }))
+                    }
+                    className="text-sm"
+                  >
+                    自定义方案
+                  </GradientButton>
+                </div>
               </header>
               <div className="grid gap-4 md:grid-cols-2">
                 <TextInput
                   label="作者"
                   placeholder="例如：杜甫"
-                  value={spacetimeForm.author}
-                  onChange={(e) => setSpacetimeForm((prev) => ({ ...prev, author: e.target.value }))}
+                  value={analysisForm.author}
+                  onChange={(e) => setAnalysisForm((prev) => ({ ...prev, author: e.target.value }))}
                 />
                 <TextInput
                   label="作品"
                   placeholder="例如：《春望》"
-                  value={spacetimeForm.workTitle}
-                  onChange={(e) => setSpacetimeForm((prev) => ({ ...prev, workTitle: e.target.value }))}
+                  value={analysisForm.workTitle}
+                  onChange={(e) => setAnalysisForm((prev) => ({ ...prev, workTitle: e.target.value }))}
                 />
                 <TextInput
                   label="时代"
                   placeholder="例如：唐代"
-                  value={spacetimeForm.era}
-                  onChange={(e) => setSpacetimeForm((prev) => ({ ...prev, era: e.target.value }))}
+                  value={analysisForm.era}
+                  onChange={(e) => setAnalysisForm((prev) => ({ ...prev, era: e.target.value }))}
                 />
                 <TextInput
                   label="流派"
                   placeholder="例如：现实主义诗歌"
-                  value={spacetimeForm.genre}
-                  onChange={(e) => setSpacetimeForm((prev) => ({ ...prev, genre: e.target.value }))}
+                  value={analysisForm.genre}
+                  onChange={(e) => setAnalysisForm((prev) => ({ ...prev, genre: e.target.value }))}
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
                   <span>分析方向</span>
                   <select
-                    value={spacetimeForm.analysisType}
-                    onChange={(e) =>
-                      setSpacetimeForm((prev) => ({
+                    value={analysisForm.analysisType}
+                    onChange={(e) => {
+                      const nextType = e.target.value as SpacetimeAnalysisType;
+                      setAnalysisForm((prev) => ({
                         ...prev,
-                        analysisType: e.target.value as SpacetimeAnalysisType
-                      }))
-                    }
+                        analysisType: nextType,
+                        customInstruction: nextType === 'custom' ? prev.customInstruction : ''
+                      }));
+                    }}
                     className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   >
                     {Object.entries(spacetimeTypeLabels).map(([key, label]) => (
@@ -518,27 +898,36 @@ const StudentWorkspacePage = () => {
                   label="对比 / 聚焦范围（选填）"
                   placeholder={focusScopeHint}
                   hint={`提示：${focusScopeHint}`}
-                  value={spacetimeForm.focusScope}
-                  onChange={(e) => setSpacetimeForm((prev) => ({ ...prev, focusScope: e.target.value }))}
+                  value={analysisForm.focusScope}
+                  onChange={(e) => setAnalysisForm((prev) => ({ ...prev, focusScope: e.target.value }))}
                 />
               </div>
               <TextArea
                 label="补充说明（选填）"
                 hint="可以写下你最关注的角度、课堂讨论问题或阅读延伸。"
-                value={spacetimeForm.promptNotes}
-                onChange={(e) => setSpacetimeForm((prev) => ({ ...prev, promptNotes: e.target.value }))}
+                value={analysisForm.promptNotes}
+                onChange={(e) => setAnalysisForm((prev) => ({ ...prev, promptNotes: e.target.value }))}
                 rows={4}
               />
-              <GradientButton variant="primary" onClick={handleGenerateSpacetime} disabled={spacetimeLoading}>
-                {spacetimeLoading ? '生成中...' : '生成分析提纲'}
+              {analysisForm.analysisType === 'custom' ? (
+                <TextArea
+                  label="自定义分析要求"
+                  hint="详细描述你希望老师生成的结构、角度或任何特别指令。"
+                  value={analysisForm.customInstruction}
+                  onChange={(e) => setAnalysisForm((prev) => ({ ...prev, customInstruction: e.target.value }))}
+                  rows={6}
+                />
+              ) : null}
+              <GradientButton variant="primary" onClick={handleGenerateAnalysis} disabled={analysisLoading}>
+                {analysisLoading ? '生成中...' : '生成分析提纲'}
               </GradientButton>
               <div className="space-y-3">
                 <h3 className="text-lg font-semibold text-gray-900">历史记录</h3>
-                {spacetimeAnalyses.length === 0 ? (
-                  <p className="text-sm text-gray-500">还没有生成记录，试着先构建一个文学时空。</p>
+                {analysisRecords.length === 0 ? (
+                  <p className="text-sm text-gray-500">还没有生成记录，试着先创建一份对比分析。</p>
                 ) : (
                   <ul className="space-y-3">
-                    {spacetimeAnalyses.map((analysis) => (
+                    {analysisRecords.map((analysis) => (
                       <li
                         key={analysis.analysisId}
                         className="space-y-3 rounded-xl border border-gray-200 bg-white/90 p-4 shadow-sm"
@@ -570,12 +959,29 @@ const StudentWorkspacePage = () => {
                               {analysis.focusScope}
                             </p>
                           ) : null}
+                          {analysis.customInstruction ? (
+                            <p className="text-xs text-indigo-600">自定义指令：{analysis.customInstruction}</p>
+                          ) : null}
                           {analysis.promptNotes ? (
                             <p className="text-xs text-gray-500">学生补充：{analysis.promptNotes}</p>
                           ) : null}
                         </div>
-                        <div className="rounded-xl bg-gray-50 p-3 text-sm text-gray-800 whitespace-pre-line">
-                          {analysis.generatedContent}
+                        <div className="rounded-xl bg-gray-50 p-3">
+                          <MarkdownRenderer content={analysis.generatedContent} />
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                          {analysis.customInstruction ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600">
+                              自定义指令
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadAnalysis(analysis)}
+                            className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600"
+                          >
+                            下载
+                          </button>
                         </div>
                       </li>
                     ))}

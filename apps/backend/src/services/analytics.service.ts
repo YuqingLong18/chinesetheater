@@ -55,8 +55,8 @@ export const getSessionAnalytics = async (sessionId: number) => {
         imageId: image.imageId,
         username: image.student.username,
         imageUrl: image.imageUrl,
-      style: image.style,
-      sceneDescription: image.sceneDescription
+        style: image.style,
+        sceneDescription: image.sceneDescription
       })),
     spacetimeSummary: spacetime
   };
@@ -120,6 +120,7 @@ export const getSessionActivityFeed = async (sessionId: number) => {
       genre: analysis.genre,
       focusScope: analysis.focusScope,
       promptNotes: analysis.promptNotes,
+      customInstruction: analysis.customInstruction,
       generatedContent: analysis.generatedContent,
       createdAt: analysis.createdAt
     }))

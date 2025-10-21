@@ -5,6 +5,7 @@ import TextInput from '../../components/TextInput';
 import GradientButton from '../../components/GradientButton';
 import client from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
+import MarkdownRenderer from '../../components/MarkdownRenderer';
 import type {
   TeacherSession,
   StudentCredential,
@@ -63,7 +64,8 @@ interface AnalyticsResponse {
 const spacetimeTypeLabels: Record<SpacetimeAnalysisType, string> = {
   crossCulture: '中外文学对比',
   sameEra: '同代作者梳理',
-  sameGenre: '同流派前后对比'
+  sameGenre: '同流派前后对比',
+  custom: '自定义方案'
 };
 
 const TeacherDashboardPage = () => {
@@ -524,7 +526,7 @@ const TeacherDashboardPage = () => {
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-gray-800">构建时空</h3>
+                  <h3 className="font-semibold text-gray-800">对比分析</h3>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
                     <span className="rounded-full bg-indigo-50 px-2 py-0.5">
                       中外对比：{analytics.spacetimeSummary.counts.crossCulture}
@@ -534,6 +536,9 @@ const TeacherDashboardPage = () => {
                     </span>
                     <span className="rounded-full bg-indigo-50 px-2 py-0.5">
                       同流派：{analytics.spacetimeSummary.counts.sameGenre}
+                    </span>
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                      自定义：{analytics.spacetimeSummary.counts.custom}
                     </span>
                   </div>
                   <ul className="mt-2 space-y-1 text-xs text-gray-500">
@@ -635,7 +640,9 @@ const TeacherDashboardPage = () => {
                               <span className="font-medium text-gray-700">{item.username}</span>
                               <span>{new Date(item.timestamp).toLocaleString('zh-CN')}</span>
                             </div>
-                            <div className="mt-2 whitespace-pre-line text-sm text-gray-800">{item.content}</div>
+                            <div className="mt-2 rounded-lg bg-gray-50 p-3">
+                              <MarkdownRenderer content={item.content} />
+                            </div>
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-600">学生消息</span>
                               {item.aiReply ? (
@@ -656,7 +663,9 @@ const TeacherDashboardPage = () => {
                                   <span className="font-medium text-purple-700">AI 回复</span>
                                   <span>{new Date(item.aiReply.timestamp).toLocaleString('zh-CN')}</span>
                                 </div>
-                                <div className="mt-2 whitespace-pre-line">{item.aiReply.content}</div>
+                                <div className="mt-2 rounded-lg bg-white/70 p-2">
+                                  <MarkdownRenderer content={item.aiReply.content} />
+                                </div>
                               </div>
                             ) : null}
                           </li>
@@ -708,11 +717,11 @@ const TeacherDashboardPage = () => {
                 </section>
                 <section className="space-y-4 md:col-span-2">
                   <div>
-                    <h4 className="text-lg font-semibold text-gray-900">构建时空分析</h4>
+                    <h4 className="text-lg font-semibold text-gray-900">对比分析提纲</h4>
                     <p className="text-xs text-gray-500">查看学生生成的时代、流派与对比提纲</p>
                   </div>
                   {filteredSpacetime.length === 0 ? (
-                    <p className="text-sm text-gray-500">暂无构建时空记录</p>
+                    <p className="text-sm text-gray-500">暂无对比分析记录</p>
                   ) : (
                     <ul className="space-y-3">
                       {filteredSpacetime.map((item) => (
@@ -753,9 +762,12 @@ const TeacherDashboardPage = () => {
                             {item.promptNotes ? (
                               <p className="text-xs text-gray-500">学生补充：{item.promptNotes}</p>
                             ) : null}
+                            {item.customInstruction ? (
+                              <p className="text-xs text-indigo-600">自定义指令：{item.customInstruction}</p>
+                            ) : null}
                           </div>
-                          <div className="rounded-xl bg-gray-50 p-3 text-sm text-gray-800 whitespace-pre-line">
-                            {item.generatedContent}
+                          <div className="rounded-xl bg-gray-50 p-3">
+                            <MarkdownRenderer content={item.generatedContent} />
                           </div>
                         </li>
                       ))}

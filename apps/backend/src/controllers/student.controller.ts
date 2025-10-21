@@ -1,9 +1,23 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../middlewares/auth.js';
-import { chatMessageSchema, imageGenerationSchema, imageEditSchema, spacetimeAnalysisSchema } from '../schemas/auth.schema.js';
+import {
+  chatMessageSchema,
+  imageGenerationSchema,
+  imageEditSchema,
+  imageRevertSchema,
+  spacetimeAnalysisSchema,
+  lifeJourneyRequestSchema
+} from '../schemas/auth.schema.js';
 import { sendStudentMessage } from '../services/chat.service.js';
-import { generateImage, listGalleryImages, shareImage, editGeneratedImage } from '../services/image.service.js';
+import {
+  generateImage,
+  listGalleryImages,
+  shareImage,
+  editGeneratedImage,
+  revertImageEdit
+} from '../services/image.service.js';
 import { createSpacetimeAnalysis, listStudentSpacetimeAnalyses } from '../services/spacetime.service.js';
+import { generateLifeJourney } from '../services/journey.service.js';
 import { prisma } from '../lib/prisma.js';
 
 export const getCurrentSession = async (req: AuthRequest, res: Response) => {
@@ -107,8 +121,8 @@ export const editGeneratedImageController = async (req: AuthRequest, res: Respon
   }
 
   try {
-    const image = await editGeneratedImage(req.user.id, imageId, parseResult.data.instruction);
-    res.json({ image });
+    const result = await editGeneratedImage(req.user.id, imageId, parseResult.data.instruction);
+    res.json({ image: result.updatedImage, previousImage: result.previousImage });
   } catch (error) {
     console.error(error);
     res.status(400).json({ message: (error as Error).message });
@@ -148,6 +162,43 @@ export const studentGallery = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const revertEditedImageController = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student') {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const imageId = Number(req.params.imageId);
+  if (Number.isNaN(imageId)) {
+    return res.status(400).json({ message: '图片ID无效' });
+  }
+
+  const parseResult = imageRevertSchema.safeParse({
+    previousImageUrl: req.body?.previousImageUrl,
+    previousSceneDescription: req.body?.previousSceneDescription,
+    previousStyle: req.body?.previousStyle,
+    previousEditCount: Number(req.body?.previousEditCount),
+    currentImageUrl: req.body?.currentImageUrl
+  });
+
+  if (!parseResult.success) {
+    return res.status(400).json({ message: parseResult.error.issues[0]?.message ?? '参数错误' });
+  }
+
+  try {
+    const reverted = await revertImageEdit(req.user.id, imageId, {
+      imageUrl: parseResult.data.previousImageUrl,
+      sceneDescription: parseResult.data.previousSceneDescription,
+      style: parseResult.data.previousStyle,
+      editCount: parseResult.data.previousEditCount
+    }, parseResult.data.currentImageUrl);
+
+    res.json({ image: reverted });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
 export const createStudentSpacetime = async (req: AuthRequest, res: Response) => {
   if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
     return res.status(401).json({ message: '未授权' });
@@ -164,7 +215,11 @@ export const createStudentSpacetime = async (req: AuthRequest, res: Response) =>
       : undefined,
     promptNotes: typeof req.body?.promptNotes === 'string' && req.body.promptNotes.trim().length > 0
       ? req.body.promptNotes.trim()
-      : undefined
+      : undefined,
+    customInstruction:
+      typeof req.body?.customInstruction === 'string' && req.body.customInstruction.trim().length > 0
+        ? req.body.customInstruction.trim()
+        : undefined
   };
 
   const parseResult = spacetimeAnalysisSchema.safeParse(payload);
@@ -191,6 +246,25 @@ export const listStudentSpacetime = async (req: AuthRequest, res: Response) => {
     res.json({ analyses });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: '加载构建时空记录失败' });
+    res.status(500).json({ message: '加载对比分析记录失败' });
+  }
+};
+
+export const createLifeJourney = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const parseResult = lifeJourneyRequestSchema.safeParse(req.body ?? {});
+  if (!parseResult.success) {
+    return res.status(400).json({ message: '请求无效' });
+  }
+
+  try {
+    const journey = await generateLifeJourney(req.user.sessionId);
+    res.status(201).json({ journey });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
   }
 };

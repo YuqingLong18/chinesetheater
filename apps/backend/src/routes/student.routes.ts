@@ -8,8 +8,10 @@ import {
   shareGeneratedImage,
   editGeneratedImageController,
   studentGallery,
+  revertEditedImageController,
   createStudentSpacetime,
-  listStudentSpacetime
+  listStudentSpacetime,
+  createLifeJourney
 } from '../controllers/student.controller.js';
 
 export const studentRouter = Router();
@@ -22,6 +24,8 @@ studentRouter.get('/chat/history', studentChatHistory);
 studentRouter.post('/generate-image', studentGenerateImage);
 studentRouter.post('/images/:imageId/share', shareGeneratedImage);
 studentRouter.post('/images/:imageId/edit', editGeneratedImageController);
+studentRouter.post('/images/:imageId/revert', revertEditedImageController);
 studentRouter.get('/gallery', studentGallery);
 studentRouter.post('/spacetime', createStudentSpacetime);
 studentRouter.get('/spacetime', listStudentSpacetime);
+studentRouter.post('/life-journey', createLifeJourney);

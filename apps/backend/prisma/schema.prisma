@@ -21,6 +21,7 @@ enum SpacetimeAnalysisType {
   crossCulture
   sameEra
   sameGenre
+  custom
 }
 
 model Teacher {
@@ -135,6 +136,7 @@ model SpacetimeAnalysis {
   analysisType    SpacetimeAnalysisType
   focusScope      String?
   promptNotes     String?
+  customInstruction String?
   generatedContent String
   createdAt        DateTime                @default(now())
 }

@@ -35,12 +35,20 @@ export const imageEditSchema = z.object({
   instruction: z.string().min(4, '请输入至少4个字符的编辑描述')
 });
 
+export const imageRevertSchema = z.object({
+  previousImageUrl: z.string().min(1, '缺少原始图像'),
+  previousSceneDescription: z.string().min(1, '缺少原始描述'),
+  previousStyle: z.string().min(1, '缺少原始风格'),
+  previousEditCount: z.number().int().min(0),
+  currentImageUrl: z.string().min(1, '缺少当前图像信息')
+});
+
 export const spacetimeAnalysisSchema = z.object({
   author: z.string().min(1, '请输入作者信息'),
   workTitle: z.string().min(1, '请输入作品名称'),
   era: z.string().min(1, '请输入时代信息'),
   genre: z.string().min(1, '请输入流派信息'),
-  analysisType: z.enum(['crossCulture', 'sameEra', 'sameGenre']),
+  analysisType: z.enum(['crossCulture', 'sameEra', 'sameGenre', 'custom']),
   focusScope: z
     .string()
     .min(2, '请至少输入2个字符')
@@ -50,5 +58,37 @@ export const spacetimeAnalysisSchema = z.object({
     .string()
     .min(2, '请至少输入2个字符')
     .max(200, '请将描述控制在200字符内')
+    .optional(),
+  customInstruction: z
+    .string()
+    .min(10, '请详细描述你的自定义分析要求，至少10个字符')
+    .max(1000, '自定义内容请控制在1000字符内')
     .optional()
+}).superRefine((value, ctx) => {
+  if (value.analysisType === 'custom') {
+    if (!value.customInstruction) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '请输入自定义分析的详细要求',
+        path: ['customInstruction']
+      });
+    }
+  } else {
+    if (!value.author.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请输入作者信息', path: ['author'] });
+    }
+    if (!value.workTitle.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请输入作品名称', path: ['workTitle'] });
+    }
+    if (!value.era.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请输入时代信息', path: ['era'] });
+    }
+    if (!value.genre.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '请输入流派信息', path: ['genre'] });
+    }
+  }
+});
+
+export const lifeJourneyRequestSchema = z.object({
+  refresh: z.boolean().optional()
 });

@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { callOpenRouter } from '../lib/openrouter.js';
 import { env } from '../config/env.js';
 
-export type SpacetimeAnalysisType = 'crossCulture' | 'sameEra' | 'sameGenre';
+export type SpacetimeAnalysisType = 'crossCulture' | 'sameEra' | 'sameGenre' | 'custom';
 
 export interface SpacetimeAnalysisInput {
   author: string;
@@ -12,6 +12,7 @@ export interface SpacetimeAnalysisInput {
   analysisType: SpacetimeAnalysisType;
   focusScope?: string | null;
   promptNotes?: string | null;
+  customInstruction?: string | null;
 }
 
 interface OpenRouterChatResponse {
@@ -25,7 +26,8 @@ interface OpenRouterChatResponse {
 const analysisTypeDescriptions: Record<SpacetimeAnalysisType, string> = {
   crossCulture: '中外文学对比分析',
   sameEra: '同时代作者代表作品梳理',
-  sameGenre: '同流派中国作家前后对比'
+  sameGenre: '同流派中国作家前后对比',
+  custom: '自定义对比分析'
 };
 
 const buildUserPrompt = (
@@ -51,22 +53,27 @@ const buildUserPrompt = (
     lines.push(`- 特别关注点：${input.promptNotes}`);
   }
 
-  lines.push('请结合中国文学史的专业知识，完成以下任务：');
-
-  if (input.analysisType === 'crossCulture') {
-    lines.push(
-      `1. 从中国文学与${input.focusScope ?? '目标文化'}的代表作入手，进行背景、主题、美学特征的对比，突出异同点。`
-    );
-    lines.push('2. 指出两种文学传统在互相影响、文化交流方面的关键节点。');
-    lines.push('3. 给出课堂讨论可延伸的提问建议，帮助学生深化理解。');
-  } else if (input.analysisType === 'sameEra') {
-    lines.push('1. 列出与该作者同一时代的2-3位重要作家，并说明代表作品。');
-    lines.push('2. 分析这些作品与课堂作品在主题、风格、社会背景上的联系与差异。');
-    lines.push('3. 提供该时代的文学发展线索，帮助学生构建时间坐标。');
+  if (input.analysisType === 'custom' && input.customInstruction) {
+    lines.push('学生希望你严格按照以下自定义说明组织输出：');
+    lines.push(input.customInstruction);
   } else {
-    lines.push('1. 选择同一流派在前辈与后继作者中的代表作品进行对比。');
-    lines.push('2. 说明流派核心美学如何在时间中传承与创新。');
-    lines.push('3. 提出课堂延伸阅读或创作练习的建议。');
+    lines.push('请结合中国文学史的专业知识，完成以下任务：');
+
+    if (input.analysisType === 'crossCulture') {
+      lines.push(
+        `1. 从中国文学与${input.focusScope ?? '目标文化'}的代表作入手，进行背景、主题、美学特征的对比，突出异同点。`
+      );
+      lines.push('2. 指出两种文学传统在互相影响、文化交流方面的关键节点。');
+      lines.push('3. 给出课堂讨论可延伸的提问建议，帮助学生深化理解。');
+    } else if (input.analysisType === 'sameEra') {
+      lines.push('1. 列出与该作者同一时代的2-3位重要作家，并说明代表作品。');
+      lines.push('2. 分析这些作品与课堂作品在主题、风格、社会背景上的联系与差异。');
+      lines.push('3. 提供该时代的文学发展线索，帮助学生构建时间坐标。');
+    } else if (input.analysisType === 'sameGenre') {
+      lines.push('1. 选择同一流派在前辈与后继作者中的代表作品进行对比。');
+      lines.push('2. 说明流派核心美学如何在时间中传承与创新。');
+      lines.push('3. 提出课堂延伸阅读或创作练习的建议。');
+    }
   }
 
   lines.push('请使用分段和小标题，语言准确、凝练，全文保持中文输出。');
@@ -134,6 +141,7 @@ export const createSpacetimeAnalysis = async (
       analysisType: input.analysisType,
       focusScope: input.focusScope ?? null,
       promptNotes: input.promptNotes ?? null,
+      customInstruction: input.customInstruction ?? null,
       generatedContent: finalContent
     }
   });
@@ -186,7 +194,8 @@ export const getSpacetimeAnalytics = async (sessionId: number) => {
     counts: {
       crossCulture: analyses.find((item) => item.analysisType === 'crossCulture')?._count.analysisType ?? 0,
       sameEra: analyses.find((item) => item.analysisType === 'sameEra')?._count.analysisType ?? 0,
-      sameGenre: analyses.find((item) => item.analysisType === 'sameGenre')?._count.analysisType ?? 0
+      sameGenre: analyses.find((item) => item.analysisType === 'sameGenre')?._count.analysisType ?? 0,
+      custom: analyses.find((item) => item.analysisType === 'custom')?._count.analysisType ?? 0
     },
     recent: recent.map((item) => ({
       analysisId: item.analysisId,

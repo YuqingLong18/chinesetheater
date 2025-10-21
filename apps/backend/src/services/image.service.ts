@@ -45,56 +45,82 @@ const toDataUrl = (base64: string, mime = 'image/png') =>
   base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
 
 const resolveImageFromChatResponse = (response: OpenRouterChatImageResponse): string => {
-  const choice = response.choices?.[0];
-  const message = choice?.message;
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [];
 
-  const directImages = Array.isArray(message?.images) ? message?.images : [];
-  for (const item of directImages) {
-    if (!item) continue;
-    if (typeof item === 'string') {
-      if (item.startsWith('http') || item.startsWith('data:')) {
-        return item;
+  if (response.choices) {
+    queue.push(response.choices);
+  }
+
+  const isDataLike = (value: string) =>
+    value.startsWith('data:') || /^[A-Za-z0-9+/=\r\n]+$/.test(value.trim());
+
+  const tryExtractFromObject = (item: Record<string, unknown>): string | null => {
+    const directUrlCandidates = [
+      item.image_url,
+      (item.image_url as { url?: string })?.url,
+      item.url,
+      item.imageUrl,
+      item.href
+    ].filter((value): value is string => typeof value === 'string');
+
+    for (const candidate of directUrlCandidates) {
+      if (candidate.startsWith('http') || candidate.startsWith('data:')) {
+        return candidate;
+      }
+    }
+
+    const base64Sources: Array<string | undefined> = [
+      typeof item.image_base64 === 'string' ? item.image_base64 : undefined,
+      typeof item.b64_json === 'string' ? item.b64_json : undefined,
+      typeof item.base64 === 'string' ? item.base64 : undefined,
+      typeof (item as { inline_data?: { data?: string } }).inline_data?.data === 'string'
+        ? (item as { inline_data?: { data?: string } }).inline_data?.data
+        : undefined,
+      typeof (item as { text?: string }).text === 'string'
+        ? (item as { text?: string }).text
+        : undefined,
+      typeof item.data === 'string' ? item.data : undefined
+    ];
+
+    for (const candidate of base64Sources) {
+      if (typeof candidate === 'string' && isDataLike(candidate)) {
+        return toDataUrl(candidate);
+      }
+    }
+
+    return null;
+  };
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+
+    if (typeof current === 'string') {
+      if (current.startsWith('http') || current.startsWith('data:')) {
+        return current;
       }
       continue;
     }
 
-    const candidateUrl =
-      typeof item.image_url === 'string'
-        ? item.image_url
-        : item.image_url?.url ?? item.url;
-    if (candidateUrl && (candidateUrl.startsWith('http') || candidateUrl.startsWith('data:'))) {
-      return candidateUrl;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
     }
 
-    const base64 = item.image_base64 ?? item.b64_json ?? item.base64;
-    if (base64) {
-      return toDataUrl(base64);
-    }
-  }
-
-  if (Array.isArray(message?.content)) {
-    for (const part of message.content) {
-      if (!part) continue;
-      if (typeof part === 'string') {
-        if (part.startsWith('http') || part.startsWith('data:')) {
-          return part;
-        }
-        continue;
+    if (typeof current === 'object') {
+      const objectCandidate = tryExtractFromObject(current as Record<string, unknown>);
+      if (objectCandidate) {
+        return objectCandidate;
       }
 
-      const maybeUrl = part.image_url ?? part.url;
-      if (maybeUrl && (maybeUrl.startsWith('http') || maybeUrl.startsWith('data:'))) {
-        return maybeUrl;
-      }
-
-      const base64 =
-        part.image_base64 ?? (part as { inline_data?: { data?: string } }).inline_data?.data ?? part.data;
-      if (base64) {
-        return toDataUrl(base64);
-      }
-
-      if (part.type === 'output_image' && part.text && part.text.startsWith('data:')) {
-        return part.text;
+      const values = Object.values(current as Record<string, unknown>);
+      if (values.length > 0) {
+        queue.push(...values);
       }
     }
   }
@@ -254,6 +280,12 @@ export const editGeneratedImage = async (
   }
 
   const baseImage = await fetchImageAsDataUrl(image.imageUrl);
+  const previousState: ImageVersion = {
+    imageUrl: image.imageUrl,
+    style: image.style,
+    sceneDescription: image.sceneDescription,
+    editCount: image.editCount
+  };
 
   const response = await callOpenRouter<OpenRouterChatImageResponse>('/chat/completions', {
     method: 'POST',
@@ -286,7 +318,59 @@ export const editGeneratedImage = async (
     }
   });
 
-  return updatedImage;
+  return {
+    updatedImage,
+    previousImage: previousState
+  };
+};
+
+interface ImageVersion {
+  imageUrl: string;
+  style: string;
+  sceneDescription: string;
+  editCount: number;
+}
+
+export const revertImageEdit = async (
+  studentId: number,
+  imageId: number,
+  previous: ImageVersion,
+  currentImageUrl: string
+) => {
+  const image = await prisma.generatedImage.findUnique({ where: { imageId } });
+  if (!image || image.studentId !== studentId) {
+    throw new Error('图片不存在或无权编辑');
+  }
+
+  if (image.imageUrl !== currentImageUrl) {
+    throw new Error('当前图像已更新，请刷新后重试');
+  }
+
+  if (image.editCount <= 0) {
+    throw new Error('暂无可撤销的编辑');
+  }
+
+  const revertedImage = await prisma.generatedImage.update({
+    where: { imageId },
+    data: {
+      imageUrl: previous.imageUrl,
+      style: previous.style,
+      sceneDescription: previous.sceneDescription,
+      editCount: previous.editCount
+    }
+  });
+
+  await prisma.imageActivity.create({
+    data: {
+      imageId,
+      studentId,
+      sessionId: image.sessionId,
+      actionType: 'edit',
+      instruction: '撤销编辑'
+    }
+  });
+
+  return revertedImage;
 };
 
 export const shareImage = async (studentId: number, imageId: number) => {

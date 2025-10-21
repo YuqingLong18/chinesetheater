@@ -1,3 +1,5 @@
+import MarkdownRenderer from './MarkdownRenderer';
+
 interface ChatBubbleProps {
   sender: 'student' | 'ai';
   content: string;
@@ -14,7 +16,7 @@ const ChatBubble = ({ sender, content }: ChatBubbleProps) => {
             : 'border border-transparent bg-white text-gray-800 shadow-md ring-1 ring-inset ring-purple-200'
         }`}
       >
-        {content}
+        <MarkdownRenderer content={content} className="markdown-bubble" />
       </div>
     </div>
   );
