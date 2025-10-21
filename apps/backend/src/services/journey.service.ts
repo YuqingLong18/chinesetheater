@@ -9,21 +9,21 @@ const poemSchema = z.object({
 });
 
 const geographySchema = z.object({
-  terrain: z.string(),
-  vegetation: z.string(),
-  water: z.string(),
-  climate: z.string()
+  terrain: z.string().nonempty(),
+  vegetation: z.string().nonempty(),
+  water: z.string().nonempty(),
+  climate: z.string().nonempty()
 });
 
 const journeyLocationSchema = z.object({
   id: z.number().int().optional(),
-  name: z.string(),
+  name: z.string().min(1),
   modernName: z.string().optional().nullable(),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
-  period: z.string(),
-  description: z.string(),
-  events: z.array(z.string()).min(1),
+  period: z.string().min(1),
+  description: z.string().min(1),
+  events: z.array(z.string().min(1)).min(1),
   geography: geographySchema,
   poems: z.array(poemSchema).min(1)
 });
@@ -31,7 +31,7 @@ const journeyLocationSchema = z.object({
 const lifeJourneySchema = z.object({
   heroName: z.string(),
   summary: z.string(),
-  locations: z.array(journeyLocationSchema).min(2),
+  locations: z.array(journeyLocationSchema).min(3),
   highlights: z.array(z.string()).optional().default([]),
   routeNotes: z.string().optional().nullable()
 });
@@ -70,6 +70,7 @@ const buildJourneyPrompt = (authorName: string, literatureTitle: string) => `请
 2. 经纬度请使用十进制小数，精确到0.01；
 3. 诗句需为原文，不要简化；
 4. 所有输出使用标准 JSON，不可包含额外文本。
+5. 若不确定经纬度，可提供大致位置但应在对应地理区域内。
 如果该作者地理轨迹较少，可加入相关地点的人文背景。`;
 
 export const generateLifeJourney = async (sessionId: number) => {
