@@ -56,6 +56,32 @@ enum WorkshopVoteType {
   rewrite
 }
 
+enum WorkshopBoardType {
+  plot
+  imagery
+  dialogue
+  ending
+  notes
+}
+
+enum WorkshopSuggestionType {
+  structure
+  imagery
+  diction
+  pacing
+  spirit
+}
+
+enum WorkshopReactionTargetType {
+  contribution
+  board
+}
+
+enum WorkshopReactionType {
+  like
+  upvote
+}
+
 model Teacher {
   teacherId    Int       @id @default(autoincrement())
   username     String    @unique
@@ -194,6 +220,9 @@ model WorkshopRoom {
   members            WorkshopMember[]
   contributions      WorkshopContribution[]
   chats              WorkshopChatMessage[]
+  boards             WorkshopBoard[]
+  suggestions        WorkshopAiSuggestion[]
+  reactions          WorkshopReaction[]
 }
 
 model WorkshopMember {
@@ -210,6 +239,8 @@ model WorkshopMember {
   contributions WorkshopContribution[]
   chats      WorkshopChatMessage[]
   votes      WorkshopContributionVote[]
+  boardVersions WorkshopBoardVersion[]
+  reactions WorkshopReaction[]
 
   @@index([roomId])
 }
@@ -226,6 +257,7 @@ model WorkshopContribution {
   status         WorkshopContributionStatus @default(accepted)
   createdAt      DateTime                   @default(now())
   votes          WorkshopContributionVote[]
+  reactions      WorkshopReaction[] @relation("ContributionReactions")
 
   @@index([roomId])
   @@index([memberId])
@@ -254,4 +286,65 @@ model WorkshopContributionVote {
   createdAt      DateTime           @default(now())
 
   @@unique([contributionId, memberId])
+}
+
+model WorkshopBoard {
+  boardId    Int             @id @default(autoincrement())
+  roomId     Int
+  room       WorkshopRoom    @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  boardType  WorkshopBoardType
+  title      String
+  content    String
+  updatedAt  DateTime        @updatedAt
+  versions   WorkshopBoardVersion[]
+  reactions  WorkshopReaction[] @relation("BoardReactions")
+  suggestions WorkshopAiSuggestion[] @relation("BoardSuggestions")
+
+  @@index([roomId])
+  @@unique([roomId, boardType])
+}
+
+model WorkshopBoardVersion {
+  versionId  Int             @id @default(autoincrement())
+  boardId    Int
+  board      WorkshopBoard   @relation(fields: [boardId], references: [boardId], onDelete: Cascade)
+  memberId   Int?
+  member     WorkshopMember? @relation(fields: [memberId], references: [memberId], onDelete: SetNull)
+  summary    String?
+  content    String
+  createdAt  DateTime        @default(now())
+}
+
+model WorkshopAiSuggestion {
+  suggestionId Int                     @id @default(autoincrement())
+  roomId       Int
+  room         WorkshopRoom            @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  boardId      Int?
+  board        WorkshopBoard?          @relation("BoardSuggestions", fields: [boardId], references: [boardId], onDelete: SetNull)
+  suggestionType WorkshopSuggestionType
+  content       String
+  createdAt     DateTime               @default(now())
+
+  @@index([roomId])
+  @@index([boardId])
+}
+
+model WorkshopReaction {
+  reactionId  Int                        @id @default(autoincrement())
+  roomId      Int
+  room        WorkshopRoom               @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  memberId    Int
+  member      WorkshopMember             @relation(fields: [memberId], references: [memberId], onDelete: Cascade)
+  targetType  WorkshopReactionTargetType
+  targetId    Int
+  reactionType WorkshopReactionType
+  createdAt   DateTime                   @default(now())
+  contributionId Int?
+  contribution   WorkshopContribution?   @relation("ContributionReactions", fields: [contributionId], references: [contributionId], onDelete: Cascade)
+  boardId        Int?
+  board          WorkshopBoard?          @relation("BoardReactions", fields: [boardId], references: [boardId], onDelete: Cascade)
+
+  @@unique([roomId, memberId, targetType, targetId])
+  @@index([roomId])
+  @@index([targetType, targetId])
 }

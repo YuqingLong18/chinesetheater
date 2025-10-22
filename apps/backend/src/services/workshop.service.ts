@@ -8,11 +8,22 @@ import type {
   WorkshopMode,
   WorkshopRoom,
   WorkshopStatus,
-  WorkshopVoteType
+  WorkshopVoteType,
+  WorkshopBoardType,
+  WorkshopReactionType,
+  WorkshopReactionTargetType,
+  WorkshopSuggestionType
 } from '@prisma/client';
 import { workshopEvents } from './workshopEvents.service.js';
 
 const WORKSHOP_CODE_LENGTH = 6;
+const ADAPTATION_BOARDS: Array<{ type: WorkshopBoardType; title: string }> = [
+  { type: 'plot', title: '情节框架' },
+  { type: 'imagery', title: '核心意象转化' },
+  { type: 'dialogue', title: '对白与描写' },
+  { type: 'ending', title: '结尾构思' },
+  { type: 'notes', title: '创作笔记' }
+];
 
 const generateRoomCode = async (): Promise<string> => {
   const attempt = () => randomBytes(Math.ceil(WORKSHOP_CODE_LENGTH / 2)).toString('hex').slice(0, WORKSHOP_CODE_LENGTH).toUpperCase();
@@ -31,6 +42,14 @@ const generateRoomCode = async (): Promise<string> => {
 };
 
 const sanitizeContent = (content: string) => content.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
+
+const sanitizeRichText = (content: string) =>
+  content
+    .replace(/\r\n/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, 5000);
 
 export interface CreateWorkshopInput {
   creatorType: 'student' | 'teacher';
@@ -79,13 +98,33 @@ export const workshopService = {
               orderIndex: 0
             }
           }
-        },
-        include: {
-          members: true
         }
       });
 
-      return room;
+      if (input.mode === 'adaptation') {
+        await Promise.all(
+          ADAPTATION_BOARDS.map((board, index) =>
+            tx.workshopBoard.create({
+              data: {
+                roomId: room.roomId,
+                boardType: board.type,
+                title: board.title,
+                content: index === 0 && input.originalContent
+                  ? `原作参考：\n${input.originalContent}`
+                  : ''
+              }
+            })
+          )
+        );
+      }
+
+      return tx.workshopRoom.findUnique({
+        where: { roomId: room.roomId },
+        include: {
+          members: true,
+          boards: true
+        }
+      });
     });
   },
 
@@ -175,12 +214,30 @@ export const workshopService = {
           orderBy: { orderIndex: 'asc' },
           include: {
             member: true,
-            votes: true
+            votes: true,
+            reactions: true
           }
         },
         chats: {
           orderBy: { createdAt: 'asc' }
-        }
+        },
+        boards: {
+          include: {
+            versions: {
+              orderBy: { createdAt: 'desc' },
+              take: 5,
+              include: {
+                member: true
+              }
+            },
+            reactions: true
+          }
+        },
+        suggestions: {
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        },
+        reactions: true
       }
     });
   },
@@ -249,7 +306,8 @@ export const workshopService = {
         },
         include: {
           member: true,
-          votes: true
+          votes: true,
+          reactions: true
         }
       });
 
@@ -278,7 +336,8 @@ export const workshopService = {
       data: { aiFeedback: feedback },
       include: {
         member: true,
-        votes: true
+        votes: true,
+        reactions: true
       }
     });
 
@@ -288,6 +347,149 @@ export const workshopService = {
     });
 
     return contribution;
+  },
+
+  async updateBoard(params: { roomId: number; boardId: number; memberId: number; content: string; summary?: string | null }) {
+    const board = await prisma.workshopBoard.findUnique({
+      where: { boardId: params.boardId },
+      include: {
+        room: true
+      }
+    });
+
+    if (!board || board.roomId !== params.roomId) {
+      throw new Error('创作板块不存在');
+    }
+
+    const sanitized = sanitizeRichText(params.content);
+    if (!sanitized) {
+      throw new Error('内容不能为空');
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.workshopBoardVersion.create({
+        data: {
+          boardId: params.boardId,
+          memberId: params.memberId,
+          summary: params.summary ?? null,
+          content: sanitized
+        }
+      });
+
+      return tx.workshopBoard.update({
+        where: { boardId: params.boardId },
+        data: { content: sanitized },
+        include: {
+          versions: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: { member: true }
+          },
+          reactions: true
+        }
+      });
+    });
+
+    workshopEvents.emit(params.roomId, {
+      type: 'board.updated',
+      payload: updated
+    });
+
+    return updated;
+  },
+
+  async listBoardVersions(boardId: number, take = 10) {
+    return prisma.workshopBoardVersion.findMany({
+      where: { boardId },
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        member: true
+      }
+    });
+  },
+
+  async addSuggestion(params: { roomId: number; boardId?: number | null; suggestionType: WorkshopSuggestionType; content: string }) {
+    const suggestion = await prisma.workshopAiSuggestion.create({
+      data: {
+        roomId: params.roomId,
+        boardId: params.boardId ?? null,
+        suggestionType: params.suggestionType,
+        content: params.content
+      }
+    });
+
+    workshopEvents.emit(params.roomId, {
+      type: 'suggestion.added',
+      payload: suggestion
+    });
+
+    return suggestion;
+  },
+
+  async toggleReaction(params: {
+    roomId: number;
+    memberId: number;
+    targetType: WorkshopReactionTargetType;
+    targetId: number;
+    reactionType: WorkshopReactionType;
+  }) {
+    if (params.targetType === 'contribution') {
+      const contribution = await prisma.workshopContribution.findUnique({ where: { contributionId: params.targetId } });
+      if (!contribution || contribution.roomId !== params.roomId) {
+        throw new Error('作品不存在');
+      }
+    } else {
+      const board = await prisma.workshopBoard.findUnique({ where: { boardId: params.targetId } });
+      if (!board || board.roomId !== params.roomId) {
+        throw new Error('创作板块不存在');
+      }
+    }
+
+    const existing = await prisma.workshopReaction.findUnique({
+      where: {
+        roomId_memberId_targetType_targetId: {
+          roomId: params.roomId,
+          memberId: params.memberId,
+          targetType: params.targetType,
+          targetId: params.targetId
+        }
+      }
+    });
+
+    let reaction;
+    if (existing && existing.reactionType === params.reactionType) {
+      reaction = await prisma.workshopReaction.delete({ where: { reactionId: existing.reactionId } });
+    } else if (existing) {
+      reaction = await prisma.workshopReaction.update({
+        where: { reactionId: existing.reactionId },
+        data: { reactionType: params.reactionType }
+      });
+    } else {
+      reaction = await prisma.workshopReaction.create({
+        data: {
+          roomId: params.roomId,
+          memberId: params.memberId,
+          targetType: params.targetType,
+          targetId: params.targetId,
+          reactionType: params.reactionType,
+          contributionId: params.targetType === 'contribution' ? params.targetId : null,
+          boardId: params.targetType === 'board' ? params.targetId : null
+        }
+      });
+    }
+
+    workshopEvents.emit(params.roomId, {
+      type: 'reaction.update',
+      payload: {
+        targetType: params.targetType,
+        targetId: params.targetId,
+        memberId: params.memberId,
+        reactionType: existing && existing.reactionType === params.reactionType ? null : params.reactionType
+      }
+    });
+
+    return reaction;
   },
 
   async postChat(roomId: number, memberId: number | null, content: string, messageType: 'message' | 'system' = 'message') {

@@ -21,7 +21,11 @@ import {
   streamWorkshopRoom,
   submitWorkshopContribution,
   postWorkshopChat,
-  voteContributionRewrite
+  voteContributionRewrite,
+  updateWorkshopBoard,
+  listWorkshopBoardVersions,
+  requestWorkshopSuggestion,
+  toggleWorkshopReaction
 } from '../controllers/workshop.controller.js';
 
 export const studentRouter = Router();
@@ -47,3 +51,7 @@ studentRouter.get('/workshops/:roomId/stream', streamWorkshopRoom);
 studentRouter.post('/workshops/:roomId/contributions', submitWorkshopContribution);
 studentRouter.post('/workshops/:roomId/chat', postWorkshopChat);
 studentRouter.post('/workshops/:roomId/votes', voteContributionRewrite);
+studentRouter.post('/workshops/:roomId/boards/:boardId', updateWorkshopBoard);
+studentRouter.get('/workshops/:roomId/boards/:boardId/versions', listWorkshopBoardVersions);
+studentRouter.post('/workshops/:roomId/suggestions', requestWorkshopSuggestion);
+studentRouter.post('/workshops/:roomId/reactions', toggleWorkshopReaction);

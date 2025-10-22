@@ -1,9 +1,47 @@
 import { useEffect, useRef } from 'react';
 import type { LifeJourneyLocation } from '../types';
 
+type LeafletCoordinate = [number, number];
+
+interface LeafletMapInstance {
+  fitBounds(bounds: LeafletCoordinate[], options?: { padding?: [number, number] }): void;
+  setView(center: LeafletCoordinate, zoom: number): void;
+  remove(): void;
+}
+
+interface LeafletLayerGroupInstance {
+  addTo(map: LeafletMapInstance): LeafletLayerGroupInstance;
+  remove(): void;
+}
+
+interface LeafletMarkerInstance {
+  addTo(layer: LeafletLayerGroupInstance): LeafletMarkerInstance;
+  bindPopup(content: string): LeafletMarkerInstance;
+  on(event: 'click', handler: () => void): void;
+}
+
+interface LeafletTileLayerInstance {
+  addTo(map: LeafletMapInstance): void;
+}
+
+interface LeafletPolylineInstance {
+  addTo(layer: LeafletLayerGroupInstance): void;
+}
+
+type LeafletDivIcon = Record<string, unknown>;
+
+interface LeafletNamespace {
+  map(element: HTMLElement, options: { center: LeafletCoordinate; zoom: number; minZoom: number; maxZoom: number }): LeafletMapInstance;
+  tileLayer(url: string, options?: { attribution?: string }): LeafletTileLayerInstance;
+  layerGroup(): LeafletLayerGroupInstance;
+  marker(latlng: LeafletCoordinate, options: { icon: LeafletDivIcon }): LeafletMarkerInstance;
+  polyline(latlngs: LeafletCoordinate[], options: { color: string; weight: number; dashArray: string; lineCap: string; opacity: number }): LeafletPolylineInstance;
+  divIcon(options: { className: string; html: string; iconSize: [number, number]; iconAnchor: [number, number] }): LeafletDivIcon;
+}
+
 declare global {
   interface Window {
-    L?: any;
+    L?: LeafletNamespace;
   }
 }
 
@@ -14,8 +52,8 @@ interface LifeJourneyMapProps {
 
 const LifeJourneyMap = ({ locations, onSelect }: LifeJourneyMapProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
-  const layersRef = useRef<any>(null);
+  const mapRef = useRef<LeafletMapInstance | null>(null);
+  const layersRef = useRef<LeafletLayerGroupInstance | null>(null);
 
   useEffect(() => {
     const ensureAssets = async () => {
@@ -48,13 +86,19 @@ const LifeJourneyMap = ({ locations, onSelect }: LifeJourneyMapProps) => {
     };
 
     const initMap = () => {
-      if (!containerRef.current || !window.L) {
+      if (!containerRef.current || !window.L || locations.length === 0) {
         return;
       }
 
       if (!mapRef.current) {
         const L = window.L;
+        if (!L) {
+          return;
+        }
         const first = locations[0];
+        if (!first) {
+          return;
+        }
         mapRef.current = L.map(containerRef.current, {
           center: [first.latitude, first.longitude],
           zoom: 5,
@@ -96,7 +140,7 @@ const LifeJourneyMap = ({ locations, onSelect }: LifeJourneyMapProps) => {
         const marker = L.marker([location.latitude, location.longitude], { icon: markerIcon }).addTo(layer);
         marker.bindPopup(
           `<div style="min-width: 140px; font-size: 12px;">
-            <strong style=\"color:#2563eb;\">${location.name}</strong><br/>
+            <strong style="color:#2563eb;">${location.name}</strong><br/>
             <span>${location.period}</span>
           </div>`
         );
@@ -118,7 +162,7 @@ const LifeJourneyMap = ({ locations, onSelect }: LifeJourneyMapProps) => {
 
       if (bounds.length > 1) {
         mapRef.current.fitBounds(bounds, { padding: [40, 40] });
-      } else {
+      } else if (bounds.length === 1) {
         mapRef.current.setView(bounds[0], 6);
       }
     };

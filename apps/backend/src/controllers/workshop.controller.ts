@@ -3,7 +3,7 @@ import type { AuthRequest } from '../middlewares/auth.js';
 import { workshopService } from '../services/workshop.service.js';
 import { workshopEvents } from '../services/workshopEvents.service.js';
 import { prisma } from '../lib/prisma.js';
-import { evaluateRelayContribution } from '../services/workshopAi.service.js';
+import { evaluateRelayContribution, generateAdaptationSuggestions } from '../services/workshopAi.service.js';
 
 const buildNickname = async (req: AuthRequest) => {
   if (!req.user) {
@@ -226,6 +226,126 @@ export const voteContributionRewrite = async (req: AuthRequest, res: Response) =
       voteType
     });
     res.status(201).json({ vote });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const updateWorkshopBoard = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const roomId = Number(req.params.roomId);
+  const boardId = Number(req.params.boardId);
+  if (Number.isNaN(roomId) || Number.isNaN(boardId)) {
+    return res.status(400).json({ message: '参数错误' });
+  }
+
+  const { content, summary } = req.body ?? {};
+  if (!content) {
+    return res.status(400).json({ message: '内容不能为空' });
+  }
+
+  try {
+    const member = await workshopService.assertMembership(roomId, req.user.role, req.user.id);
+    const board = await workshopService.updateBoard({
+      roomId,
+      boardId,
+      memberId: member.memberId,
+      content,
+      summary: summary ?? null
+    });
+    res.status(201).json({ board });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const listWorkshopBoardVersions = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const roomId = Number(req.params.roomId);
+  const boardId = Number(req.params.boardId);
+  if (Number.isNaN(roomId) || Number.isNaN(boardId)) {
+    return res.status(400).json({ message: '参数错误' });
+  }
+
+  try {
+    await workshopService.assertMembership(roomId, req.user.role, req.user.id);
+    const versions = await workshopService.listBoardVersions(boardId);
+    res.json({ versions });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const requestWorkshopSuggestion = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const roomId = Number(req.params.roomId);
+  if (Number.isNaN(roomId)) {
+    return res.status(400).json({ message: '房间ID无效' });
+  }
+
+  const { boardId } = req.body ?? {};
+
+  try {
+    await workshopService.assertMembership(roomId, req.user.role, req.user.id);
+    const room = await workshopService.getRoomDetail(roomId);
+    if (!room || room.mode !== 'adaptation') {
+      return res.status(400).json({ message: '当前房间不支持改编建议' });
+    }
+    const suggestions = await generateAdaptationSuggestions(roomId, boardId ? Number(boardId) : undefined);
+    const stored = await Promise.all(
+      suggestions.map((item) =>
+        workshopService.addSuggestion({
+          roomId,
+          boardId: boardId ? Number(boardId) : null,
+          suggestionType: item.type,
+          content: item.content
+        })
+      )
+    );
+    res.status(201).json({ suggestions: stored });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const toggleWorkshopReaction = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const roomId = Number(req.params.roomId);
+  if (Number.isNaN(roomId)) {
+    return res.status(400).json({ message: '参数错误' });
+  }
+
+  const { targetType, targetId, reactionType } = req.body ?? {};
+  if (!targetType || !targetId || !reactionType) {
+    return res.status(400).json({ message: '缺少必要参数' });
+  }
+
+  try {
+    const member = await workshopService.assertMembership(roomId, req.user.role, req.user.id);
+    const reaction = await workshopService.toggleReaction({
+      roomId,
+      memberId: member.memberId,
+      targetType,
+      targetId: Number(targetId),
+      reactionType
+    });
+    res.status(201).json({ reaction });
   } catch (error) {
     console.error(error);
     res.status(400).json({ message: (error as Error).message });

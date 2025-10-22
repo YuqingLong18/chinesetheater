@@ -132,6 +132,7 @@ export interface WorkshopContribution {
   createdAt: string;
   member: WorkshopMember;
   votes: WorkshopVote[];
+  reactions: WorkshopReaction[];
 }
 
 export interface WorkshopVote {
@@ -152,6 +153,46 @@ export interface WorkshopChatMessage {
   member?: WorkshopMember | null;
 }
 
+export interface WorkshopBoardVersion {
+  versionId: number;
+  boardId: number;
+  memberId?: number | null;
+  summary?: string | null;
+  content: string;
+  createdAt: string;
+  member?: WorkshopMember | null;
+}
+
+export interface WorkshopBoard {
+  boardId: number;
+  roomId: number;
+  boardType: WorkshopBoardType;
+  title: string;
+  content: string;
+  updatedAt: string;
+  versions: WorkshopBoardVersion[];
+  reactions: WorkshopReaction[];
+}
+
+export interface WorkshopAiSuggestion {
+  suggestionId: number;
+  roomId: number;
+  boardId?: number | null;
+  suggestionType: WorkshopSuggestionType;
+  content: string;
+  createdAt: string;
+}
+
+export interface WorkshopReaction {
+  reactionId: number;
+  roomId: number;
+  memberId: number;
+  targetType: WorkshopReactionTargetType;
+  targetId: number;
+  reactionType: WorkshopReactionType;
+  createdAt: string;
+}
+
 export interface WorkshopRoomSummary {
   roomId: number;
   code: string;
@@ -166,6 +207,9 @@ export interface WorkshopRoomSummary {
   members: WorkshopMember[];
   contributions?: WorkshopContribution[];
   chats?: WorkshopChatMessage[];
+  boards?: WorkshopBoard[];
+  suggestions?: WorkshopAiSuggestion[];
+  reactions?: WorkshopReaction[];
   originalTitle?: string | null;
   originalContent?: string | null;
   createdAt: string;
