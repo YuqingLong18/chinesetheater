@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import type { Session } from '@prisma/client';
+import { refreshSessionLifeJourney } from './journey.service.js';
 
 export const createSession = async (
   teacherId: number,
@@ -13,7 +14,7 @@ export const createSession = async (
     throw new Error('该会话PIN码已存在，请重新输入');
   }
 
-  return prisma.session.create({
+  const session = await prisma.session.create({
     data: {
       teacherId,
       sessionName,
@@ -22,6 +23,18 @@ export const createSession = async (
       literatureTitle
     }
   });
+
+  try {
+    await refreshSessionLifeJourney(session.sessionId);
+    const updated = await prisma.session.findUnique({ where: { sessionId: session.sessionId } });
+    if (updated) {
+      return updated;
+    }
+  } catch (error) {
+    console.error('预生成人生行迹失败', error);
+  }
+
+  return session;
 };
 
 export const getSessionWithStudents = (sessionId: number) =>

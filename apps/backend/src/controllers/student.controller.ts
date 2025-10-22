@@ -5,8 +5,7 @@ import {
   imageGenerationSchema,
   imageEditSchema,
   imageRevertSchema,
-  spacetimeAnalysisSchema,
-  lifeJourneyRequestSchema
+  spacetimeAnalysisSchema
 } from '../schemas/auth.schema.js';
 import { sendStudentMessage } from '../services/chat.service.js';
 import {
@@ -14,10 +13,13 @@ import {
   listGalleryImages,
   shareImage,
   editGeneratedImage,
-  revertImageEdit
+  revertImageEdit,
+  toggleImageLike,
+  addImageComment,
+  listImageComments
 } from '../services/image.service.js';
 import { createSpacetimeAnalysis, listStudentSpacetimeAnalyses } from '../services/spacetime.service.js';
-import { generateLifeJourney } from '../services/journey.service.js';
+import { ensureSessionLifeJourney } from '../services/journey.service.js';
 import { prisma } from '../lib/prisma.js';
 
 export const getCurrentSession = async (req: AuthRequest, res: Response) => {
@@ -154,11 +156,70 @@ export const studentGallery = async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    const gallery = await listGalleryImages(req.user.sessionId);
+    const gallery = await listGalleryImages(req.user.sessionId, req.user.id);
     res.json({ gallery });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: '加载画廊失败' });
+  }
+};
+
+export const toggleGalleryLike = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const imageId = Number(req.params.imageId);
+  if (Number.isNaN(imageId)) {
+    return res.status(400).json({ message: '图片ID无效' });
+  }
+
+  try {
+    const result = await toggleImageLike(req.user.sessionId, req.user.id, imageId);
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const createGalleryComment = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const imageId = Number(req.params.imageId);
+  if (Number.isNaN(imageId)) {
+    return res.status(400).json({ message: '图片ID无效' });
+  }
+
+  const content = typeof req.body?.content === 'string' ? req.body.content : '';
+
+  try {
+    const result = await addImageComment(req.user.sessionId, req.user.id, imageId, content);
+    res.status(201).json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const listGalleryComments = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const imageId = Number(req.params.imageId);
+  if (Number.isNaN(imageId)) {
+    return res.status(400).json({ message: '图片ID无效' });
+  }
+
+  try {
+    const comments = await listImageComments(req.user.sessionId, imageId);
+    res.json({ comments });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
   }
 };
 
@@ -250,19 +311,14 @@ export const listStudentSpacetime = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const createLifeJourney = async (req: AuthRequest, res: Response) => {
+export const getLifeJourney = async (req: AuthRequest, res: Response) => {
   if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
     return res.status(401).json({ message: '未授权' });
   }
 
-  const parseResult = lifeJourneyRequestSchema.safeParse(req.body ?? {});
-  if (!parseResult.success) {
-    return res.status(400).json({ message: '请求无效' });
-  }
-
   try {
-    const journey = await generateLifeJourney(req.user.sessionId);
-    res.status(201).json({ journey });
+    const journey = await ensureSessionLifeJourney(req.user.sessionId);
+    res.json({ journey });
   } catch (error) {
     console.error(error);
     res.status(400).json({ message: (error as Error).message });

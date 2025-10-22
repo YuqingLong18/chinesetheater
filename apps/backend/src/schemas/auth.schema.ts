@@ -88,7 +88,3 @@ export const spacetimeAnalysisSchema = z.object({
     }
   }
 });
-
-export const lifeJourneyRequestSchema = z.object({
-  refresh: z.boolean().optional()
-});

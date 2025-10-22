@@ -62,6 +62,7 @@ enum WorkshopBoardType {
   dialogue
   ending
   notes
+  finalDraft
 }
 
 enum WorkshopSuggestionType {
@@ -100,10 +101,14 @@ model Session {
   literatureTitle String
   isActive        Boolean          @default(true)
   createdAt       DateTime         @default(now())
+  lifeJourney     Json?
+  lifeJourneyGeneratedAt DateTime?
   students        Student[]
   conversations   Conversation[]
   images          GeneratedImage[]
   imageActivities ImageActivity[]
+  imageReactions  ImageReaction[]
+  imageComments   ImageComment[]
   spacetimeAnalyses SpacetimeAnalysis[]
 }
 
@@ -122,6 +127,8 @@ model Student {
   messages       Message[]
   images         GeneratedImage[]
   imageActivities ImageActivity[]
+  imageReactions ImageReaction[]
+  imageComments  ImageComment[]
   spacetimeAnalyses SpacetimeAnalysis[]
 
   @@unique([sessionId, username])
@@ -166,6 +173,8 @@ model GeneratedImage {
   isShared         Boolean  @default(false)
   createdAt        DateTime @default(now())
   activities       ImageActivity[]
+  reactions        ImageReaction[]
+  comments         ImageComment[]
 }
 
 model ImageActivity {
@@ -179,6 +188,35 @@ model ImageActivity {
   actionType  ImageActionType
   instruction String
   createdAt   DateTime         @default(now())
+}
+
+model ImageReaction {
+  reactionId Int      @id @default(autoincrement())
+  image      GeneratedImage @relation(fields: [imageId], references: [imageId], onDelete: Cascade)
+  imageId    Int
+  student    Student @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  studentId  Int
+  session    Session @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId  Int
+  createdAt  DateTime @default(now())
+
+  @@unique([imageId, studentId])
+  @@index([sessionId])
+}
+
+model ImageComment {
+  commentId Int      @id @default(autoincrement())
+  image     GeneratedImage @relation(fields: [imageId], references: [imageId], onDelete: Cascade)
+  imageId   Int
+  student   Student @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  studentId Int
+  session   Session @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId Int
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([imageId])
+  @@index([sessionId])
 }
 
 model SpacetimeAnalysis {

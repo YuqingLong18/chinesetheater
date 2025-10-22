@@ -385,13 +385,153 @@ export const shareImage = async (studentId: number, imageId: number) => {
   });
 };
 
-export const listGalleryImages = (sessionId: number) =>
-  prisma.generatedImage.findMany({
+export const listGalleryImages = async (sessionId: number, studentId: number) => {
+  const images = await prisma.generatedImage.findMany({
     where: { sessionId, isShared: true },
     orderBy: { createdAt: 'desc' },
+    include: {
+      student: {
+        select: { username: true }
+      },
+      reactions: {
+        where: { studentId },
+        select: { reactionId: true }
+      },
+      comments: {
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+        include: {
+          student: {
+            select: {
+              username: true
+            }
+          }
+        }
+      },
+      _count: {
+        select: {
+          reactions: true,
+          comments: true
+        }
+      }
+    }
+  });
+
+  return images.map((image) => ({
+    imageId: image.imageId,
+    imageUrl: image.imageUrl,
+    style: image.style,
+    sceneDescription: image.sceneDescription,
+    username: image.student.username,
+    createdAt: image.createdAt,
+    likeCount: image._count.reactions,
+    likedByMe: image.reactions.length > 0,
+    commentCount: image._count.comments,
+    recentComments: image.comments
+      .map((comment) => ({
+        commentId: comment.commentId,
+        content: comment.content,
+        username: comment.student.username,
+        createdAt: comment.createdAt
+      }))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+  }));
+};
+
+export const toggleImageLike = async (sessionId: number, studentId: number, imageId: number) => {
+  const image = await prisma.generatedImage.findUnique({ where: { imageId } });
+  if (!image || image.sessionId !== sessionId || !image.isShared) {
+    throw new Error('作品不存在或未分享到画廊');
+  }
+
+  const existing = await prisma.imageReaction.findUnique({
+    where: {
+      imageId_studentId: {
+        imageId,
+        studentId
+      }
+    }
+  });
+
+  let liked = false;
+  if (existing) {
+    await prisma.imageReaction.delete({ where: { reactionId: existing.reactionId } });
+  } else {
+    await prisma.imageReaction.create({
+      data: {
+        imageId,
+        studentId,
+        sessionId
+      }
+    });
+    liked = true;
+  }
+
+  const likeCount = await prisma.imageReaction.count({ where: { imageId } });
+  return { liked, likeCount };
+};
+
+export const addImageComment = async (sessionId: number, studentId: number, imageId: number, content: string) => {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error('评论不能为空');
+  }
+  if (trimmed.length > 500) {
+    throw new Error('评论内容过长');
+  }
+
+  const image = await prisma.generatedImage.findUnique({ where: { imageId } });
+  if (!image || image.sessionId !== sessionId || !image.isShared) {
+    throw new Error('作品不存在或未分享到画廊');
+  }
+
+  const comment = await prisma.imageComment.create({
+    data: {
+      imageId,
+      studentId,
+      sessionId,
+      content: trimmed
+    },
     include: {
       student: {
         select: { username: true }
       }
     }
   });
+
+  const commentCount = await prisma.imageComment.count({ where: { imageId } });
+
+  return {
+    comment: {
+      commentId: comment.commentId,
+      content: comment.content,
+      createdAt: comment.createdAt,
+      username: comment.student.username
+    },
+    commentCount
+  };
+};
+
+export const listImageComments = async (sessionId: number, imageId: number) => {
+  const image = await prisma.generatedImage.findUnique({ where: { imageId } });
+  if (!image || image.sessionId !== sessionId || !image.isShared) {
+    throw new Error('作品不存在或未分享到画廊');
+  }
+
+  const comments = await prisma.imageComment.findMany({
+    where: { imageId },
+    orderBy: { createdAt: 'asc' },
+    include: {
+      student: {
+        select: { username: true }
+      }
+    }
+  });
+
+  return comments.map((comment) => ({
+    commentId: comment.commentId,
+    content: comment.content,
+    createdAt: comment.createdAt,
+    username: comment.student.username
+  }));
+};

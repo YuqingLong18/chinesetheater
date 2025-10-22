@@ -73,6 +73,24 @@ const buildJourneyPrompt = (authorName: string, literatureTitle: string) => `请
 5. 若不确定经纬度，可提供大致位置但应在对应地理区域内。
 如果该作者地理轨迹较少，可加入相关地点的人文背景。`;
 
+const parseStoredJourney = (value: unknown) => {
+  if (!value) {
+    return null;
+  }
+  const parsed = lifeJourneySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+};
+
+const storeLifeJourney = async (sessionId: number, journey: LifeJourneyResponse) => {
+  await prisma.session.update({
+    where: { sessionId },
+    data: {
+      lifeJourney: journey,
+      lifeJourneyGeneratedAt: new Date()
+    }
+  });
+};
+
 export const generateLifeJourney = async (sessionId: number) => {
   const session = await prisma.session.findUnique({ where: { sessionId } });
   if (!session) {
@@ -160,4 +178,40 @@ export const generateLifeJourney = async (sessionId: number) => {
     ...validation.data,
     locations: withIds
   } satisfies LifeJourneyResponse;
+};
+
+export const ensureSessionLifeJourney = async (sessionId: number): Promise<LifeJourneyResponse> => {
+  const session = await prisma.session.findUnique({
+    where: { sessionId },
+    select: {
+      lifeJourney: true
+    }
+  });
+
+  const existing = parseStoredJourney(session?.lifeJourney ?? null);
+  if (existing) {
+    return existing;
+  }
+
+  const generated = await generateLifeJourney(sessionId);
+  await storeLifeJourney(sessionId, generated);
+  return generated;
+};
+
+export const getStoredLifeJourney = async (sessionId: number): Promise<LifeJourneyResponse | null> => {
+  const session = await prisma.session.findUnique({
+    where: { sessionId },
+    select: {
+      lifeJourney: true
+    }
+  });
+
+  const existing = parseStoredJourney(session?.lifeJourney ?? null);
+  return existing;
+};
+
+export const refreshSessionLifeJourney = async (sessionId: number): Promise<LifeJourneyResponse> => {
+  const generated = await generateLifeJourney(sessionId);
+  await storeLifeJourney(sessionId, generated);
+  return generated;
 };

@@ -22,7 +22,8 @@ const ADAPTATION_BOARDS: Array<{ type: WorkshopBoardType; title: string }> = [
   { type: 'imagery', title: '核心意象转化' },
   { type: 'dialogue', title: '对白与描写' },
   { type: 'ending', title: '结尾构思' },
-  { type: 'notes', title: '创作笔记' }
+  { type: 'notes', title: '创作笔记' },
+  { type: 'finalDraft', title: '最终文稿' }
 ];
 
 const generateRoomCode = async (): Promise<string> => {

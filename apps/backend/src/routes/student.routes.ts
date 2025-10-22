@@ -11,7 +11,10 @@ import {
   revertEditedImageController,
   createStudentSpacetime,
   listStudentSpacetime,
-  createLifeJourney
+  getLifeJourney,
+  toggleGalleryLike,
+  createGalleryComment,
+  listGalleryComments
 } from '../controllers/student.controller.js';
 import {
   createWorkshopRoom,
@@ -40,9 +43,12 @@ studentRouter.post('/images/:imageId/share', shareGeneratedImage);
 studentRouter.post('/images/:imageId/edit', editGeneratedImageController);
 studentRouter.post('/images/:imageId/revert', revertEditedImageController);
 studentRouter.get('/gallery', studentGallery);
+studentRouter.post('/gallery/:imageId/like', toggleGalleryLike);
+studentRouter.post('/gallery/:imageId/comments', createGalleryComment);
+studentRouter.get('/gallery/:imageId/comments', listGalleryComments);
 studentRouter.post('/spacetime', createStudentSpacetime);
 studentRouter.get('/spacetime', listStudentSpacetime);
-studentRouter.post('/life-journey', createLifeJourney);
+studentRouter.get('/life-journey', getLifeJourney);
 studentRouter.post('/workshops', createWorkshopRoom);
 studentRouter.get('/workshops', listWorkshopRooms);
 studentRouter.post('/workshops/join', joinWorkshopRoom);
