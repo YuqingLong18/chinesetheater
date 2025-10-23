@@ -6,7 +6,7 @@ ALTER TABLE "Session" ADD COLUMN "lifeJourney" JSONB,
 ADD COLUMN "lifeJourneyGeneratedAt" TIMESTAMP(3);
 
 -- CreateEnum
-CREATE TYPE "SessionTaskFeature" AS ENUM ('writing', 'workshop', 'analysis', 'journey', 'gallery');
+CREATE TYPE "SessionTaskFeature" AS ENUM ('chat', 'writing', 'workshop', 'analysis', 'journey', 'gallery');
 
 -- CreateEnum
 CREATE TYPE "SessionTaskSubmissionStatus" AS ENUM ('submitted', 'resubmitted');

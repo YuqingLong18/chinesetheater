@@ -72,6 +72,7 @@ interface TaskDraft {
 }
 
 const taskFeatureOptions: Array<{ value: SessionTaskFeature; label: string }> = [
+  { value: 'chat', label: '与作者对话' },
   { value: 'writing', label: '描述性写作' },
   { value: 'workshop', label: '协作创作' },
   { value: 'analysis', label: '对比分析' },
@@ -121,7 +122,6 @@ const TeacherDashboardPage = () => {
     try {
       const response = await client.get('/teacher/sessions');
       setSessions(response.data.sessions ?? []);
-      setTaskSummary(null);
     } catch (error) {
       console.error(error);
     }
@@ -152,6 +152,31 @@ const TeacherDashboardPage = () => {
     } catch (error) {
       console.error(error);
       setTaskSummary(null);
+    }
+  };
+
+  const refreshCurrentSession = async () => {
+    if (!selectedSession) {
+      await fetchSessions();
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      await Promise.all([
+        fetchSessions(),
+        fetchStudents(selectedSession),
+        fetchAnalytics(selectedSession),
+        fetchTaskSummary(selectedSession)
+      ]);
+      setMessage('课堂数据已刷新');
+    } catch (error) {
+      console.error(error);
+      setMessage('刷新失败，请稍后再试');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -522,6 +547,9 @@ const TeacherDashboardPage = () => {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold text-gray-900">课堂列表</h2>
               <div className="flex items-center gap-3">
+                <GradientButton variant="secondary" onClick={refreshCurrentSession}>
+                  刷新数据
+                </GradientButton>
                 <GradientButton variant="primary" onClick={handleOpenActivityModal} disabled={!selectedSession}>
                   课堂详情
                 </GradientButton>

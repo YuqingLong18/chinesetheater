@@ -77,11 +77,21 @@ const focusScopePlaceholder: Record<SpacetimeAnalysisType, string> = {
 };
 
 const taskFeatureToTab: Record<SessionTaskFeature, FeatureKey> = {
+  chat: 'chat',
   writing: 'writing',
   workshop: 'workshop',
   analysis: 'analysis',
   journey: 'journey',
   gallery: 'gallery'
+};
+
+const taskPlaceholders: Record<SessionTaskFeature, string> = {
+  chat: '总结你在与作者交流中的问题、收获或新想法。',
+  writing: '分享你写作的核心内容或心得。',
+  workshop: '记录协作创作的亮点、共识或后续计划。',
+  analysis: '写下你的分析要点、比较结果或课堂反思。',
+  journey: '描述你对作者行迹的理解、疑问或课堂收获。',
+  gallery: '写下你对作品的点评、灵感或改进建议。'
 };
 
 const StudentWorkspacePage = () => {
@@ -110,6 +120,7 @@ const StudentWorkspacePage = () => {
   const [tasks, setTasks] = useState<StudentTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [taskSubmitting, setTaskSubmitting] = useState<number | null>(null);
+  const [taskResponses, setTaskResponses] = useState<Record<number, string>>({});
   const [analysisRecords, setAnalysisRecords] = useState<StudentSpacetimeAnalysis[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisForm, setAnalysisForm] = useState({
@@ -151,6 +162,18 @@ const StudentWorkspacePage = () => {
       const response = await client.get('/student/tasks');
       const data = (response.data.tasks ?? []) as StudentTask[];
       setTasks(data);
+      setTaskResponses((prev) => {
+        const next: Record<number, string> = {};
+        data.forEach((task) => {
+          const payload = task.submission?.payload as { text?: unknown } | undefined;
+          if (payload && typeof payload.text === 'string') {
+            next[task.taskId] = payload.text;
+          } else if (prev[task.taskId]) {
+            next[task.taskId] = prev[task.taskId];
+          }
+        });
+        return next;
+      });
     } catch (error) {
       console.error(error);
     } finally {
@@ -208,6 +231,13 @@ const StudentWorkspacePage = () => {
     [fetchStudentTasks]
   );
 
+  const handleTaskInputChange = (taskId: number, value: string) => {
+    setTaskResponses((prev) => ({
+      ...prev,
+      [taskId]: value
+    }));
+  };
+
   const handleSubmitWritingTask = async (taskId: number) => {
     if (!generatedImage) {
       setMessage('请先完成一次描述性写作并生成图像');
@@ -223,6 +253,84 @@ const StudentWorkspacePage = () => {
     };
 
     await handleSubmitTask(taskId, payload);
+  };
+
+  const handleSubmitTaskText = async (task: StudentTask) => {
+    const text = (taskResponses[task.taskId] ?? '').trim();
+    if (!text) {
+      setMessage('请先填写任务内容');
+      return;
+    }
+
+    await handleSubmitTask(task.taskId, {
+      feature: task.feature,
+      text,
+      submittedAt: new Date().toISOString()
+    });
+  };
+
+  const renderTaskInputs = (feature: SessionTaskFeature) => {
+    if (feature === 'writing' || feature === 'workshop') {
+      return null;
+    }
+
+    const featureTasks = tasks.filter((task) => task.feature === feature);
+    if (!tasksLoading && featureTasks.length === 0) {
+      return null;
+    }
+
+    if (tasksLoading && featureTasks.length === 0) {
+      return (
+        <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-3 text-xs text-purple-600">
+          正在加载任务，请稍候...
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 rounded-xl border border-purple-200 bg-purple-50/60 p-4">
+        <div className="text-sm font-semibold text-purple-700">课堂任务提交</div>
+        {featureTasks.map((task) => {
+          const value = taskResponses[task.taskId] ?? '';
+          const isSubmitting = taskSubmitting === task.taskId;
+          const completed = Boolean(task.submission);
+          const statusLabel = completed
+            ? task.submission?.status === 'resubmitted'
+              ? '已重新提交'
+              : '已提交'
+            : task.isRequired
+              ? '必做任务'
+              : '可选任务';
+
+          return (
+            <div key={task.taskId} className="space-y-2 rounded-lg bg-white/80 p-3 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{task.title}</span>
+                <span>{statusLabel}</span>
+              </div>
+              {task.description ? <p className="text-xs text-gray-500">{task.description}</p> : null}
+              <TextArea
+                label="任务回答"
+                placeholder={taskPlaceholders[feature]}
+                value={value}
+                onChange={(event) => handleTaskInputChange(task.taskId, event.target.value)}
+                rows={4}
+              />
+              <div className="flex items-center gap-2">
+                <GradientButton variant="primary" onClick={() => handleSubmitTaskText(task)} disabled={isSubmitting}>
+                  {isSubmitting ? '提交中...' : completed ? '重新提交任务' : '提交任务'}
+                </GradientButton>
+                {completed && task.submission ? (
+                  <span className="text-xs text-gray-400">
+                    最近提交：{new Date(task.submission.updatedAt).toLocaleString('zh-CN')}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -892,6 +1000,7 @@ const StudentWorkspacePage = () => {
                   {sending ? '发送中...' : '发送'}
                 </GradientButton>
               </div>
+              {renderTaskInputs('chat')}
             </Card>
           ) : null}
 
@@ -1110,6 +1219,7 @@ const StudentWorkspacePage = () => {
               ) : (
                 <p className="text-sm text-gray-500">点击“生成行迹”即可查看本节作者的互动式人生地图。</p>
               )}
+              {renderTaskInputs('journey')}
             </Card>
           ) : null}
 
@@ -1218,6 +1328,7 @@ const StudentWorkspacePage = () => {
               <GradientButton variant="primary" onClick={handleGenerateAnalysis} disabled={analysisLoading}>
                 {analysisLoading ? '生成中...' : '生成分析提纲'}
               </GradientButton>
+              {renderTaskInputs('analysis')}
               <div className="space-y-3">
                 <h3 className="text-lg font-semibold text-gray-900">历史记录</h3>
                 {analysisRecords.length === 0 ? (
@@ -1328,6 +1439,7 @@ const StudentWorkspacePage = () => {
                 ))}
                 {gallery.length === 0 ? <p className="text-sm text-gray-500">尚无作品分享，快来成为第一个!</p> : null}
               </div>
+              {renderTaskInputs('gallery')}
             </Card>
           ) : null}
         </section>

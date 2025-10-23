@@ -12,7 +12,7 @@ const sessionTaskInputSchema = z.object({
     .min(1, '任务描述至少1个字符')
     .max(300, '任务描述请控制在300字符内')
     .optional(),
-  feature: z.enum(['writing', 'workshop', 'analysis', 'journey', 'gallery']),
+  feature: z.enum(['chat', 'writing', 'workshop', 'analysis', 'journey', 'gallery']),
   isRequired: z.boolean().optional(),
   config: z.record(z.any()).optional(),
   orderIndex: z.number().int().min(0).optional()

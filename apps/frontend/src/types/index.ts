@@ -32,7 +32,7 @@ export interface GalleryComment {
   createdAt: string;
 }
 
-export type SessionTaskFeature = 'writing' | 'workshop' | 'analysis' | 'journey' | 'gallery';
+export type SessionTaskFeature = 'chat' | 'writing' | 'workshop' | 'analysis' | 'journey' | 'gallery';
 export type SessionTaskSubmissionStatus = 'submitted' | 'resubmitted';
 
 export interface StudentTaskSubmission {
