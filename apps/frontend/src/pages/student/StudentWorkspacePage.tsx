@@ -121,6 +121,7 @@ const StudentWorkspacePage = () => {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [taskSubmitting, setTaskSubmitting] = useState<number | null>(null);
   const [taskResponses, setTaskResponses] = useState<Record<number, string>>({});
+  const [tasksExpanded, setTasksExpanded] = useState(true);
   const [analysisRecords, setAnalysisRecords] = useState<StudentSpacetimeAnalysis[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisForm, setAnalysisForm] = useState({
@@ -899,19 +900,30 @@ const StudentWorkspacePage = () => {
                 <h2 className="text-lg font-semibold text-gray-900">课堂任务清单</h2>
                 <p className="text-xs text-gray-500">完成指定功能后记得提交成果</p>
               </div>
-              <button
-                type="button"
-                onClick={() => fetchStudentTasks()}
-                className="text-xs text-blue-500 transition hover:text-blue-700"
-              >
-                刷新
-              </button>
+              <div className="flex items-center gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTasksExpanded((prev) => !prev)}
+                  className="rounded border border-gray-300 px-2 py-1 text-gray-600 transition hover:border-gray-400"
+                >
+                  {tasksExpanded ? '收起' : '展开'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fetchStudentTasks()}
+                  className="text-blue-500 transition hover:text-blue-700"
+                >
+                  刷新
+                </button>
+              </div>
             </div>
             {tasksLoading ? (
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500" />
                 正在获取任务，请稍候...
               </div>
+            ) : !tasksExpanded ? (
+              <p className="text-sm text-gray-500">任务清单已收起，点击“展开”查看详情。</p>
             ) : tasks.length === 0 ? (
               <p className="text-sm text-gray-500">暂无教师布置的任务。</p>
             ) : (
