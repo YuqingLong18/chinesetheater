@@ -11,8 +11,11 @@ import type {
   StudentCredential,
   SessionActivityFeed,
   SessionActivityMessage,
-  SpacetimeAnalysisType
+  SpacetimeAnalysisType,
+  TeacherTaskSummary,
+  SessionTaskFeature
 } from '../../types';
+import TextArea from '../../components/TextArea';
 
 interface StudentRow {
   studentId: number;
@@ -61,6 +64,21 @@ interface AnalyticsResponse {
 };
 }
 
+interface TaskDraft {
+  title: string;
+  description: string;
+  feature: SessionTaskFeature;
+  isRequired: boolean;
+}
+
+const taskFeatureOptions: Array<{ value: SessionTaskFeature; label: string }> = [
+  { value: 'writing', label: '描述性写作' },
+  { value: 'workshop', label: '协作创作' },
+  { value: 'analysis', label: '对比分析' },
+  { value: 'journey', label: '人生行迹' },
+  { value: 'gallery', label: '课堂画廊互动' }
+];
+
 const spacetimeTypeLabels: Record<SpacetimeAnalysisType, string> = {
   crossCulture: '中外文学对比',
   sameEra: '同代作者梳理',
@@ -76,6 +94,8 @@ const TeacherDashboardPage = () => {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [credentials, setCredentials] = useState<StudentCredential[]>([]);
+  const [taskDrafts, setTaskDrafts] = useState<TaskDraft[]>([]);
+  const [taskSummary, setTaskSummary] = useState<TeacherTaskSummary | null>(null);
   const [formData, setFormData] = useState({
     sessionName: '',
     sessionPin: '',
@@ -101,6 +121,7 @@ const TeacherDashboardPage = () => {
     try {
       const response = await client.get('/teacher/sessions');
       setSessions(response.data.sessions ?? []);
+      setTaskSummary(null);
     } catch (error) {
       console.error(error);
     }
@@ -124,6 +145,16 @@ const TeacherDashboardPage = () => {
     }
   };
 
+  const fetchTaskSummary = async (sessionId: number) => {
+    try {
+      const response = await client.get(`/teacher/sessions/${sessionId}/tasks`);
+      setTaskSummary(response.data.summary ?? null);
+    } catch (error) {
+      console.error(error);
+      setTaskSummary(null);
+    }
+  };
+
   useEffect(() => {
     fetchSessions();
   }, []);
@@ -132,6 +163,9 @@ const TeacherDashboardPage = () => {
     if (selectedSession) {
       fetchStudents(selectedSession);
       fetchAnalytics(selectedSession);
+      fetchTaskSummary(selectedSession);
+    } else {
+      setTaskSummary(null);
     }
   }, [selectedSession]);
 
@@ -257,14 +291,45 @@ const TeacherDashboardPage = () => {
     return activityFeed.spacetimeAnalyses.filter((item) => item.studentId === activityFilter);
   }, [activityFeed, activityFilter]);
 
+  const handleAddTaskDraft = () => {
+    setTaskDrafts((prev) => [...prev, { title: '', description: '', feature: 'writing', isRequired: true }]);
+  };
+
+  const handleTaskDraftChange = <K extends keyof TaskDraft>(index: number, key: K, value: TaskDraft[K]) => {
+    setTaskDrafts((prev) =>
+      prev.map((task, i) => (i === index ? { ...task, [key]: value } : task))
+    );
+  };
+
+  const handleRemoveTaskDraft = (index: number) => {
+    setTaskDrafts((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleCreateSession = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setMessage(null);
 
     try {
-      await client.post('/teacher/sessions', formData);
+      const taskPayload = taskDrafts.reduce<Array<{ title: string; description?: string; feature: SessionTaskFeature; isRequired: boolean; orderIndex: number }>>((acc, task, index) => {
+        const title = task.title.trim();
+        if (!title) {
+          return acc;
+        }
+        const description = task.description.trim();
+        acc.push({
+          title,
+          description: description ? description : undefined,
+          feature: task.feature,
+          isRequired: task.isRequired,
+          orderIndex: index
+        });
+        return acc;
+      }, []);
+
+      await client.post('/teacher/sessions', { ...formData, tasks: taskPayload });
       setFormData({ sessionName: '', sessionPin: '', authorName: '', literatureTitle: '' });
+      setTaskDrafts([]);
       setMessage('课堂会话创建成功');
       fetchSessions();
     } catch (error) {
@@ -376,6 +441,76 @@ const TeacherDashboardPage = () => {
                 value={formData.literatureTitle}
                 onChange={(e) => setFormData((prev) => ({ ...prev, literatureTitle: e.target.value }))}
               />
+              <div className="md:col-span-2 space-y-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-800">任务清单（可选）</h3>
+                    <p className="text-xs text-gray-500">为学生设定课堂内需要完成的作业或练习。</p>
+                  </div>
+                  <GradientButton variant="secondary" type="button" onClick={handleAddTaskDraft}>
+                    添加任务
+                  </GradientButton>
+                </div>
+                {taskDrafts.length === 0 ? (
+                  <p className="rounded-lg bg-white/70 p-3 text-sm text-gray-500">暂未添加任务。</p>
+                ) : (
+                  <div className="space-y-4">
+                    {taskDrafts.map((task, index) => (
+                      <div key={index} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start">
+                          <div className="flex-1 space-y-3">
+                            <TextInput
+                              label={`任务名称 ${index + 1}`}
+                              placeholder="例如：提交描述性写作成果"
+                              value={task.title}
+                              onChange={(e) => handleTaskDraftChange(index, 'title', e.target.value)}
+                            />
+                            <TextArea
+                              label="任务说明"
+                              placeholder="说明需要学生完成的具体内容"
+                              value={task.description}
+                              onChange={(e) => handleTaskDraftChange(index, 'description', e.target.value)}
+                              rows={3}
+                            />
+                          </div>
+                          <div className="w-full space-y-3 md:w-56">
+                            <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
+                              <span>关联功能</span>
+                              <select
+                                value={task.feature}
+                                onChange={(e) => handleTaskDraftChange(index, 'feature', e.target.value as SessionTaskFeature)}
+                                className="rounded-lg border border-gray-200 px-3 py-2"
+                              >
+                                {taskFeatureOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-gray-600">
+                              <input
+                                type="checkbox"
+                                checked={task.isRequired}
+                                onChange={(e) => handleTaskDraftChange(index, 'isRequired', e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              必做任务
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTaskDraft(index)}
+                              className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm text-red-500 transition hover:bg-red-50"
+                            >
+                              删除任务
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <GradientButton variant="primary" className="md:col-span-2" type="submit" disabled={loading}>
                 {loading ? '提交中...' : '创建会话'}
               </GradientButton>
@@ -466,6 +601,54 @@ const TeacherDashboardPage = () => {
                 </div>
               ) : null}
             </div>
+          </Card>
+
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">任务完成情况</h2>
+              <span className="text-xs text-gray-500">学生完成状态实时更新</span>
+            </div>
+            {!selectedSession ? (
+              <p className="text-sm text-gray-500">请选择课堂会话以查看任务。</p>
+            ) : taskSummary && taskSummary.tasks.length > 0 ? (
+              <div className="space-y-3">
+                {taskSummary.tasks.map((task) => (
+                  <div key={task.taskId} className="rounded-lg border border-gray-200 bg-white/80 p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {task.title}
+                          {!task.isRequired ? (
+                            <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">选做</span>
+                          ) : null}
+                        </p>
+                        {task.description ? <p className="text-xs text-gray-500">{task.description}</p> : null}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        已提交 {task.submittedCount}/{taskSummary.studentCount}
+                      </span>
+                    </div>
+                    {task.submissions.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-xs text-gray-600">
+                        {task.submissions.map((submission) => (
+                          <li key={submission.submissionId} className="rounded bg-gray-50 px-2 py-1">
+                            <span className="font-medium text-gray-700">{submission.username}</span>
+                            <span className="mx-1 text-gray-400">·</span>
+                            <span>{new Date(submission.updatedAt).toLocaleString('zh-CN')}</span>
+                            <span className="mx-1 text-gray-400">·</span>
+                            <span>{submission.status === 'resubmitted' ? '已重新提交' : '已提交'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-xs text-gray-400">暂无学生提交。</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">尚未设置任务。</p>
+            )}
           </Card>
 
           {students.length > 0 ? (

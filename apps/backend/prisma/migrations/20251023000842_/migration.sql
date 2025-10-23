@@ -30,6 +30,9 @@ ALTER TABLE "ImageComment" ALTER COLUMN "createdAt" SET NOT NULL;
 ALTER TABLE "ImageReaction" ALTER COLUMN "createdAt" SET NOT NULL;
 
 -- AlterTable
+ALTER TABLE "SessionTaskSubmission" ALTER COLUMN "updatedAt" DROP DEFAULT;
+
+-- AlterTable
 ALTER TABLE "WorkshopBoard" ALTER COLUMN "updatedAt" DROP DEFAULT;
 
 -- AlterTable

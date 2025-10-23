@@ -4,6 +4,7 @@ import { createSession, getTeacherSessions, getSessionWithStudents } from '../se
 import { createStudentAccounts, listStudentsForSession } from '../services/student.service.js';
 import { getSessionAnalytics, getSessionActivityFeed } from '../services/analytics.service.js';
 import { createSessionSchema, studentBatchSchema } from '../schemas/auth.schema.js';
+import { getSessionTaskSummary } from '../services/task.service.js';
 
 export const createTeacherSession = async (req: AuthRequest, res: Response) => {
   const parseResult = createSessionSchema.safeParse(req.body);
@@ -16,12 +17,18 @@ export const createTeacherSession = async (req: AuthRequest, res: Response) => {
   }
 
   try {
+    const tasks = (parseResult.data.tasks ?? []).map((task, index) => ({
+      ...task,
+      orderIndex: task.orderIndex ?? index
+    }));
+
     const session = await createSession(
       req.user.id,
       parseResult.data.sessionName,
       parseResult.data.sessionPin,
       parseResult.data.authorName,
-      parseResult.data.literatureTitle
+      parseResult.data.literatureTitle,
+      tasks
     );
 
     res.status(201).json({ session });
@@ -147,5 +154,29 @@ export const sessionAnalytics = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: '获取课堂数据失败' });
+  }
+};
+
+export const sessionTasksSummary = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const sessionId = Number(req.params.sessionId);
+  if (Number.isNaN(sessionId)) {
+    return res.status(400).json({ message: '会话ID无效' });
+  }
+
+  try {
+    const session = await getSessionWithStudents(sessionId);
+    if (!session || session.teacherId !== req.user.id) {
+      return res.status(404).json({ message: '未找到会话或无权操作' });
+    }
+
+    const summary = await getSessionTaskSummary(sessionId);
+    res.json({ summary });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: '获取任务清单失败' });
   }
 };

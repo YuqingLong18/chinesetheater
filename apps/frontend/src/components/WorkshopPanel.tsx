@@ -10,7 +10,8 @@ import type {
   WorkshopBoard,
   WorkshopBoardVersion,
   WorkshopAiSuggestion,
-  WorkshopReactionType
+  WorkshopReactionType,
+  StudentTask
 } from '../types';
 import GradientButton from './GradientButton';
 import TextInput from './TextInput';
@@ -35,11 +36,18 @@ const defaultForm: CreateRoomForm = {
   targetLines: 8
 };
 
-const WorkshopPanel = () => {
+interface WorkshopPanelProps {
+  tasks?: StudentTask[];
+  onSubmitTask?: (taskId: number, payload: Record<string, unknown>) => Promise<void>;
+  submittingTaskId?: number | null;
+}
+
+const WorkshopPanel = ({ tasks = [], onSubmitTask, submittingTaskId }: WorkshopPanelProps) => {
   const { studentProfile, teacherProfile, studentToken, teacherToken } = useAuthStore();
   const [rooms, setRooms] = useState<WorkshopRoomSummary[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<WorkshopRoomSummary | null>(null);
+  const [showRoomsPanel, setShowRoomsPanel] = useState(true);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingRoomDetail, setLoadingRoomDetail] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -58,10 +66,13 @@ const WorkshopPanel = () => {
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<WorkshopAiSuggestion[]>([]);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const activeBoardIdRef = useRef<number | null>(null);
 
   const currentUserRole: 'student' | 'teacher' = studentProfile ? 'student' : 'teacher';
   const currentUserId = studentProfile?.id ?? teacherProfile?.id ?? 0;
+
+  const workshopTasks = useMemo(() => tasks.filter((task) => task.feature === 'workshop'), [tasks]);
 
   const fetchRooms = useCallback(async () => {
     setLoadingRooms(true);
@@ -267,9 +278,9 @@ const WorkshopPanel = () => {
               next = existingIndex >= 0 ? reactions.filter((_, index) => index !== existingIndex) : reactions;
             } else if (existingIndex >= 0) {
               next = reactions.map((reaction, index) =>
-                index === existingIndex ? { ...reaction, reactionType: payload.reactionType } : reaction
+                index === existingIndex ? { ...reaction, reactionType: payload.reactionType! } : reaction
               );
-            } else {
+            } else if (payload.reactionType) {
               next = [
                 ...reactions,
                 {
@@ -278,7 +289,7 @@ const WorkshopPanel = () => {
                   memberId: payload.memberId,
                   targetType: 'contribution' as const,
                   targetId: payload.targetId,
-                  reactionType: payload.reactionType,
+                  reactionType: payload.reactionType!,
                   createdAt: new Date().toISOString()
                 }
               ];
@@ -296,9 +307,9 @@ const WorkshopPanel = () => {
             next = existingIndex >= 0 ? reactions.filter((_, index) => index !== existingIndex) : reactions;
           } else if (existingIndex >= 0) {
             next = reactions.map((reaction, index) =>
-              index === existingIndex ? { ...reaction, reactionType: payload.reactionType } : reaction
+              index === existingIndex ? { ...reaction, reactionType: payload.reactionType! } : reaction
             );
-          } else {
+          } else if (payload.reactionType) {
             next = [
               ...reactions,
               {
@@ -307,7 +318,7 @@ const WorkshopPanel = () => {
                 memberId: payload.memberId,
                 targetType: 'board' as const,
                 targetId: payload.targetId,
-                reactionType: payload.reactionType ?? 'like',
+                reactionType: payload.reactionType!,
                 createdAt: new Date().toISOString()
               }
             ];
@@ -386,6 +397,13 @@ const WorkshopPanel = () => {
     }
     return (selectedRoom.boards ?? []).find((board) => board.boardId === activeBoardId) ?? null;
   }, [selectedRoom, activeBoardId]);
+
+  const finalBoard = useMemo(() => {
+    if (!selectedRoom || selectedRoom.mode !== 'adaptation') {
+      return null;
+    }
+    return (selectedRoom.boards ?? []).find((board) => board.boardType === 'finalDraft') ?? null;
+  }, [selectedRoom]);
 
   const handleCreateRoom = async () => {
     if (!createForm.title.trim()) {
@@ -530,32 +548,131 @@ const WorkshopPanel = () => {
     }
   };
 
+  const handleSubmitWorkshopTask = async (taskId: number) => {
+    if (!onSubmitTask) {
+      setError('该任务暂不支持在线提交');
+      return;
+    }
+
+    if (!selectedRoom) {
+      setError('请先加入创作房间');
+      return;
+    }
+
+    setError(null);
+
+    try {
+      if (selectedRoom.mode === 'adaptation') {
+        const trimmed = boardDraft.trim();
+        if (!activeBoard) {
+          setError('请选择一个创作板块后再提交');
+          return;
+        }
+        if (!trimmed) {
+          setError('请先在选定板块中写入内容');
+          return;
+        }
+
+        await onSubmitTask(taskId, {
+          feature: 'workshop',
+          mode: 'adaptation',
+          roomId: selectedRoom.roomId,
+          boardId: activeBoard.boardId,
+          boardType: activeBoard.boardType,
+          content: trimmed,
+          submittedAt: new Date().toISOString()
+        });
+      } else {
+        const contributions = (selectedRoom.contributions ?? []).filter((contribution) => contribution.memberId === myMember?.memberId);
+        if (contributions.length === 0) {
+          setError('你尚未提交作品，请先完成一次创作');
+          return;
+        }
+        const latest = [...contributions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+        await onSubmitTask(taskId, {
+          feature: 'workshop',
+          mode: selectedRoom.mode,
+          submissionType: 'relayContribution',
+          roomId: selectedRoom.roomId,
+          contributionId: latest.contributionId,
+          content: latest.content,
+          submittedAt: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      setError('提交任务失败，请稍后重试');
+    }
+  };
+
+  const handleAppendToFinal = async () => {
+    if (!selectedRoom || selectedRoom.mode !== 'adaptation' || !activeBoard || !finalBoard) {
+      setError('暂未找到最终文稿板块');
+      return;
+    }
+    if (activeBoard.boardId === finalBoard.boardId) {
+      setError('当前板块已经是最终文稿');
+      return;
+    }
+    const snippet = boardDraft.trim();
+    if (!snippet) {
+      setError('请先填写内容后再添加到最终文稿');
+      return;
+    }
+
+    setFinalizing(true);
+    setError(null);
+    try {
+      const existing = (finalBoard.content ?? '').trimEnd();
+      const separator = existing ? '\n\n' : '';
+      const merged = `${existing}${separator}${snippet}`;
+      await client.post(`/student/workshops/${selectedRoom.roomId}/boards/${finalBoard.boardId}`, {
+        content: merged
+      });
+      await fetchRoomDetail(selectedRoom.roomId);
+    } catch (err) {
+      console.error(err);
+      setError('添加到最终文稿失败，请稍后再试');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
   const handleToggleReaction = async (
     targetType: 'contribution' | 'board',
     targetId: number,
     reactionType: WorkshopReactionType = 'like'
   ) => {
-    if (!selectedRoom || !myMember) return;
+    if (!selectedRoom) return;
     try {
       await client.post(`/student/workshops/${selectedRoom.roomId}/reactions`, {
         targetType,
         targetId,
         reactionType
       });
+      await fetchRoomDetail(selectedRoom.roomId);
     } catch (err) {
       console.error(err);
       setError('操作失败，请稍后再试');
     }
   };
 
+  const toggleRoomsPanel = () => setShowRoomsPanel((prev) => !prev);
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-      <aside className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4">
+    <div className={`grid gap-6 ${showRoomsPanel ? 'lg:grid-cols-[280px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]'}`}>
+      {showRoomsPanel ? (
+        <aside className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">创作房间</h3>
-          <GradientButton variant="secondary" onClick={() => setShowCreate((prev) => !prev)}>
-            {showCreate ? '取消' : '新建'}
-          </GradientButton>
+          <div className="flex items-center gap-2">
+            <GradientButton variant="secondary" onClick={() => setShowRoomsPanel(false)}>
+              收起
+            </GradientButton>
+            <GradientButton variant="secondary" onClick={() => setShowCreate((prev) => !prev)}>
+              {showCreate ? '取消' : '新建'}
+            </GradientButton>
+          </div>
         </div>
         {showCreate ? (
           <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
@@ -612,11 +729,11 @@ const WorkshopPanel = () => {
 
         {loadingRooms ? <p className="text-sm text-gray-500">房间加载中...</p> : null}
         <div className="space-y-2">
-          {rooms.map((room) => (
-            <button
-              key={room.roomId}
-              type="button"
-              onClick={() => setSelectedRoomId(room.roomId)}
+        {rooms.map((room) => (
+          <button
+            key={room.roomId}
+            type="button"
+            onClick={() => setSelectedRoomId(room.roomId)}
               className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
                 selectedRoomId === room.roomId ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white hover:border-blue-200'
               }`}
@@ -629,9 +746,22 @@ const WorkshopPanel = () => {
             </button>
           ))}
         </div>
-      </aside>
+        </aside>
+      ) : null}
 
       <section className="space-y-4">
+        {!showRoomsPanel ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-800">创作房间</h3>
+              <p className="text-xs text-gray-500">需要切换房间或新建时可展开列表。</p>
+            </div>
+            <GradientButton variant="secondary" onClick={toggleRoomsPanel}>
+              展开列表
+            </GradientButton>
+          </div>
+        ) : null}
+
         {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div> : null}
 
         {selectedRoom ? (
@@ -646,6 +776,41 @@ const WorkshopPanel = () => {
                 {selectedRoom.meterRequirement ? <p>格律：{selectedRoom.meterRequirement}</p> : null}
               </div>
             </div>
+
+            {workshopTasks.length > 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-700">
+                <p className="text-sm font-semibold text-amber-700">任务提醒</p>
+                <ul className="mt-2 space-y-2">
+                  {workshopTasks.map((task) => {
+                    const completed = Boolean(task.submission);
+                    return (
+                      <li key={task.taskId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/70 px-3 py-2">
+                        <div>
+                          <p className="font-medium text-amber-800">{task.title}</p>
+                          {task.description ? <p>{task.description}</p> : null}
+                          {completed && task.submission ? (
+                            <p className="text-[11px] text-amber-500">
+                              最近提交：{new Date(task.submission.updatedAt).toLocaleString('zh-CN')}
+                            </p>
+                          ) : null}
+                        </div>
+                        <GradientButton
+                          variant="primary"
+                          onClick={() => handleSubmitWorkshopTask(task.taskId)}
+                          disabled={submittingTaskId === task.taskId}
+                        >
+                          {submittingTaskId === task.taskId
+                            ? '提交中...'
+                            : completed
+                              ? '重新提交成果'
+                              : '提交任务'}
+                        </GradientButton>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
 
             {selectedRoom.mode === 'relay' ? (
               <div className="grid gap-6 lg:grid-cols-[260px_1fr_260px]">
@@ -774,7 +939,7 @@ const WorkshopPanel = () => {
                   </div>
                 ) : null}
 
-                <div className="grid gap-6 lg:grid-cols-[240px_1fr_300px]">
+                <div className="grid gap-6 lg:grid-cols-[minmax(220px,250px)_minmax(0,1.9fr)_minmax(220px,1fr)] xl:grid-cols-[minmax(240px,260px)_minmax(0,2.4fr)_minmax(240px,1fr)]">
                   <aside className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-700">创作板块</h3>
                     <div className="space-y-2">
@@ -791,7 +956,14 @@ const WorkshopPanel = () => {
                             }`}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-medium">{board.title}</span>
+                              <span className="font-medium">
+                                {board.title}
+                                {board.boardType === 'finalDraft' ? (
+                                  <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-700">
+                                    最终
+                                  </span>
+                                ) : null}
+                              </span>
                               <span className="text-xs text-gray-400">👍 {reactions.length}</span>
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs text-gray-500">{board.content || '待编辑'}</p>
@@ -825,7 +997,7 @@ const WorkshopPanel = () => {
                         rows={10}
                         disabled={!activeBoard || boardSaving}
                       />
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
                         <GradientButton variant="primary" onClick={handleSaveBoard} disabled={!activeBoard || boardSaving}>
                           {boardSaving ? '保存中...' : '保存修改'}
                         </GradientButton>
@@ -835,6 +1007,11 @@ const WorkshopPanel = () => {
                         <GradientButton variant="secondary" onClick={handleRequestSuggestion} disabled={suggestionLoading}>
                           {suggestionLoading ? '请稍候...' : '获取AI建议'}
                         </GradientButton>
+                        {activeBoard && finalBoard && activeBoard.boardId !== finalBoard.boardId ? (
+                          <GradientButton variant="secondary" onClick={handleAppendToFinal} disabled={finalizing}>
+                            {finalizing ? '追加中...' : '加入最终文稿'}
+                          </GradientButton>
+                        ) : null}
                       </div>
                     </div>
 

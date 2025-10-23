@@ -5,11 +5,30 @@ export const teacherLoginSchema = z.object({
   password: z.string().min(6, '密码长度至少6位')
 });
 
+const sessionTaskInputSchema = z.object({
+  title: z.string().min(1, '任务名称不能为空'),
+  description: z
+    .string()
+    .min(1, '任务描述至少1个字符')
+    .max(300, '任务描述请控制在300字符内')
+    .optional(),
+  feature: z.enum(['writing', 'workshop', 'analysis', 'journey', 'gallery']),
+  isRequired: z.boolean().optional(),
+  config: z.record(z.any()).optional(),
+  orderIndex: z.number().int().min(0).optional()
+});
+
+export type SessionTaskInputSchema = z.infer<typeof sessionTaskInputSchema>;
+
 export const createSessionSchema = z.object({
   sessionName: z.string().min(1, '请输入会话名称'),
   sessionPin: z.string().regex(/^\d{4,6}$/g, 'PIN码需为4-6位数字'),
   authorName: z.string().min(1, '请输入作者姓名'),
-  literatureTitle: z.string().min(1, '请输入文学作品名称')
+  literatureTitle: z.string().min(1, '请输入文学作品名称'),
+  tasks: z
+    .array(sessionTaskInputSchema)
+    .max(10, '任务数量请控制在10个以内')
+    .optional()
 });
 
 export const studentBatchSchema = z.object({
@@ -41,6 +60,10 @@ export const imageRevertSchema = z.object({
   previousStyle: z.string().min(1, '缺少原始风格'),
   previousEditCount: z.number().int().min(0),
   currentImageUrl: z.string().min(1, '缺少当前图像信息')
+});
+
+export const taskSubmissionSchema = z.object({
+  payload: z.record(z.any())
 });
 
 export const spacetimeAnalysisSchema = z.object({

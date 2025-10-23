@@ -1,27 +1,37 @@
 import { prisma } from '../lib/prisma.js';
 import type { Session } from '@prisma/client';
 import { refreshSessionLifeJourney } from './journey.service.js';
+import { createSessionTasks, type CreateSessionTaskInput } from './task.service.js';
 
 export const createSession = async (
   teacherId: number,
   sessionName: string,
   sessionPin: string,
   authorName: string,
-  literatureTitle: string
+  literatureTitle: string,
+  tasks: CreateSessionTaskInput[] = []
 ): Promise<Session> => {
   const existingPin = await prisma.session.findUnique({ where: { sessionPin } });
   if (existingPin) {
     throw new Error('该会话PIN码已存在，请重新输入');
   }
 
-  const session = await prisma.session.create({
-    data: {
-      teacherId,
-      sessionName,
-      sessionPin,
-      authorName,
-      literatureTitle
+  const session = await prisma.$transaction(async (tx) => {
+    const created = await tx.session.create({
+      data: {
+        teacherId,
+        sessionName,
+        sessionPin,
+        authorName,
+        literatureTitle
+      }
+    });
+
+    if (tasks.length > 0) {
+      await createSessionTasks(created.sessionId, tasks, tx);
     }
+
+    return created;
   });
 
   try {

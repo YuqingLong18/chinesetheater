@@ -5,7 +5,8 @@ import {
   listTeacherSessions,
   listSessionStudents,
   sessionAnalytics,
-  sessionActivityFeed
+  sessionActivityFeed,
+  sessionTasksSummary
 } from '../controllers/teacher.controller.js';
 import { authenticate } from '../middlewares/auth.js';
 
@@ -19,3 +20,5 @@ teacherRouter.post('/sessions/:sessionId/students', generateStudentAccountsContr
 teacherRouter.get('/sessions/:sessionId/students', listSessionStudents);
 teacherRouter.get('/sessions/:sessionId/analytics', sessionAnalytics);
 teacherRouter.get('/sessions/:sessionId/activity', sessionActivityFeed);
+teacherRouter.get('/sessions/:sessionId/tasks', sessionTasksSummary);
+

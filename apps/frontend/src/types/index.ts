@@ -19,6 +19,64 @@ export interface StudentGalleryItem {
   sceneDescription: string;
   username: string;
   createdAt?: string;
+  likeCount: number;
+  likedByMe: boolean;
+  commentCount: number;
+  recentComments: GalleryComment[];
+}
+
+export interface GalleryComment {
+  commentId: number;
+  content: string;
+  username: string;
+  createdAt: string;
+}
+
+export type SessionTaskFeature = 'writing' | 'workshop' | 'analysis' | 'journey' | 'gallery';
+export type SessionTaskSubmissionStatus = 'submitted' | 'resubmitted';
+
+export interface StudentTaskSubmission {
+  submissionId: number;
+  status: SessionTaskSubmissionStatus;
+  payload: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentTask {
+  taskId: number;
+  title: string;
+  description?: string | null;
+  feature: SessionTaskFeature;
+  isRequired: boolean;
+  orderIndex: number;
+  submission: StudentTaskSubmission | null;
+}
+
+export interface TeacherTaskSubmissionSummary {
+  submissionId: number;
+  studentId: number;
+  username: string;
+  status: SessionTaskSubmissionStatus;
+  payload: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeacherTaskSummaryTask {
+  taskId: number;
+  title: string;
+  description?: string | null;
+  feature: SessionTaskFeature;
+  isRequired: boolean;
+  orderIndex: number;
+  submittedCount: number;
+  submissions: TeacherTaskSubmissionSummary[];
+}
+
+export interface TeacherTaskSummary {
+  studentCount: number;
+  tasks: TeacherTaskSummaryTask[];
 }
 
 export interface SessionActivityMessage {
@@ -108,6 +166,10 @@ export type WorkshopMode = 'relay' | 'adaptation';
 export type WorkshopStatus = 'active' | 'completed' | 'archived';
 export type WorkshopContributionStatus = 'accepted' | 'pending' | 'retracted';
 export type WorkshopVoteType = 'keep' | 'rewrite';
+export type WorkshopBoardType = 'plot' | 'imagery' | 'dialogue' | 'ending' | 'notes' | 'finalDraft';
+export type WorkshopSuggestionType = 'structure' | 'imagery' | 'diction' | 'pacing' | 'spirit';
+export type WorkshopReactionTargetType = 'contribution' | 'board';
+export type WorkshopReactionType = 'like' | 'upvote';
 
 export interface WorkshopMember {
   memberId: number;

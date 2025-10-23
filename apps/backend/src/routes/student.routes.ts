@@ -8,6 +8,8 @@ import {
   shareGeneratedImage,
   editGeneratedImageController,
   studentGallery,
+  listStudentTasks,
+  submitStudentTask,
   revertEditedImageController,
   createStudentSpacetime,
   listStudentSpacetime,
@@ -43,6 +45,8 @@ studentRouter.post('/images/:imageId/share', shareGeneratedImage);
 studentRouter.post('/images/:imageId/edit', editGeneratedImageController);
 studentRouter.post('/images/:imageId/revert', revertEditedImageController);
 studentRouter.get('/gallery', studentGallery);
+studentRouter.get('/tasks', listStudentTasks);
+studentRouter.post('/tasks/:taskId/submission', submitStudentTask);
 studentRouter.post('/gallery/:imageId/like', toggleGalleryLike);
 studentRouter.post('/gallery/:imageId/comments', createGalleryComment);
 studentRouter.get('/gallery/:imageId/comments', listGalleryComments);

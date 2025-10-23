@@ -1,11 +1,13 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../middlewares/auth.js';
+import { Prisma } from '@prisma/client';
 import {
   chatMessageSchema,
   imageGenerationSchema,
   imageEditSchema,
   imageRevertSchema,
-  spacetimeAnalysisSchema
+  spacetimeAnalysisSchema,
+  taskSubmissionSchema
 } from '../schemas/auth.schema.js';
 import { sendStudentMessage } from '../services/chat.service.js';
 import {
@@ -20,6 +22,7 @@ import {
 } from '../services/image.service.js';
 import { createSpacetimeAnalysis, listStudentSpacetimeAnalyses } from '../services/spacetime.service.js';
 import { ensureSessionLifeJourney } from '../services/journey.service.js';
+import { listTasksForStudent, submitTaskForStudent } from '../services/task.service.js';
 import { prisma } from '../lib/prisma.js';
 
 export const getCurrentSession = async (req: AuthRequest, res: Response) => {
@@ -164,6 +167,20 @@ export const studentGallery = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const listStudentTasks = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  try {
+    const tasks = await listTasksForStudent(req.user.sessionId, req.user.id);
+    res.json({ tasks });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: '加载任务清单失败' });
+  }
+};
+
 export const toggleGalleryLike = async (req: AuthRequest, res: Response) => {
   if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
     return res.status(401).json({ message: '未授权' });
@@ -177,6 +194,35 @@ export const toggleGalleryLike = async (req: AuthRequest, res: Response) => {
   try {
     const result = await toggleImageLike(req.user.sessionId, req.user.id, imageId);
     res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: (error as Error).message });
+  }
+};
+
+export const submitStudentTask = async (req: AuthRequest, res: Response) => {
+  if (!req.user || req.user.role !== 'student' || !req.user.sessionId) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  const taskId = Number(req.params.taskId);
+  if (Number.isNaN(taskId)) {
+    return res.status(400).json({ message: '任务ID无效' });
+  }
+
+  const parseResult = taskSubmissionSchema.safeParse(req.body ?? {});
+  if (!parseResult.success) {
+    return res.status(400).json({ message: '提交内容无效' });
+  }
+
+  try {
+    const submission = await submitTaskForStudent(
+      taskId,
+      req.user.id,
+      req.user.sessionId,
+      parseResult.data.payload as Prisma.InputJsonValue
+    );
+    res.status(201).json({ submission });
   } catch (error) {
     console.error(error);
     res.status(400).json({ message: (error as Error).message });

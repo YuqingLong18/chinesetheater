@@ -83,6 +83,19 @@ enum WorkshopReactionType {
   upvote
 }
 
+enum SessionTaskFeature {
+  writing
+  workshop
+  analysis
+  journey
+  gallery
+}
+
+enum SessionTaskSubmissionStatus {
+  submitted
+  resubmitted
+}
+
 model Teacher {
   teacherId    Int       @id @default(autoincrement())
   username     String    @unique
@@ -109,6 +122,7 @@ model Session {
   imageActivities ImageActivity[]
   imageReactions  ImageReaction[]
   imageComments   ImageComment[]
+  tasks           SessionTask[]
   spacetimeAnalyses SpacetimeAnalysis[]
 }
 
@@ -130,6 +144,7 @@ model Student {
   imageReactions ImageReaction[]
   imageComments  ImageComment[]
   spacetimeAnalyses SpacetimeAnalysis[]
+  taskSubmissions SessionTaskSubmission[]
 
   @@unique([sessionId, username])
 }
@@ -217,6 +232,37 @@ model ImageComment {
 
   @@index([imageId])
   @@index([sessionId])
+}
+
+model SessionTask {
+  taskId      Int                 @id @default(autoincrement())
+  session     Session             @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId   Int
+  title       String
+  description String?
+  feature     SessionTaskFeature
+  config      Json?
+  isRequired  Boolean             @default(true)
+  orderIndex  Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  submissions SessionTaskSubmission[]
+
+  @@index([sessionId, orderIndex])
+}
+
+model SessionTaskSubmission {
+  submissionId Int                         @id @default(autoincrement())
+  task         SessionTask                 @relation(fields: [taskId], references: [taskId], onDelete: Cascade)
+  taskId       Int
+  student      Student                     @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  studentId    Int
+  status       SessionTaskSubmissionStatus @default(submitted)
+  payload      Json
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
+
+  @@unique([taskId, studentId])
+  @@index([studentId])
 }
 
 model SpacetimeAnalysis {

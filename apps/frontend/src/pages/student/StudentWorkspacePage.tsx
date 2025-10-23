@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/Card';
@@ -18,7 +18,10 @@ import type {
   StudentSpacetimeAnalysis,
   SpacetimeAnalysisType,
   LifeJourneyResponse,
-  LifeJourneyLocation
+  LifeJourneyLocation,
+  GalleryComment,
+  StudentTask,
+  SessionTaskFeature
 } from '../../types';
 
 interface ChatMessage {
@@ -73,6 +76,14 @@ const focusScopePlaceholder: Record<SpacetimeAnalysisType, string> = {
   custom: '例如：跨媒体改编比较 / 主题与修辞对照'
 };
 
+const taskFeatureToTab: Record<SessionTaskFeature, FeatureKey> = {
+  writing: 'writing',
+  workshop: 'workshop',
+  analysis: 'analysis',
+  journey: 'journey',
+  gallery: 'gallery'
+};
+
 const StudentWorkspacePage = () => {
   const navigate = useNavigate();
   const { studentProfile, logoutStudent } = useAuthStore();
@@ -91,6 +102,14 @@ const StudentWorkspacePage = () => {
   const [editInstruction, setEditInstruction] = useState('');
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [selectedGalleryItem, setSelectedGalleryItem] = useState<StudentGalleryItem | null>(null);
+  const [selectedGalleryComments, setSelectedGalleryComments] = useState<GalleryComment[]>([]);
+  const [galleryCommentsLoading, setGalleryCommentsLoading] = useState(false);
+  const [galleryCommentInput, setGalleryCommentInput] = useState('');
+  const [galleryCommentSubmitting, setGalleryCommentSubmitting] = useState(false);
+  const [galleryLikeProcessing, setGalleryLikeProcessing] = useState<number | null>(null);
+  const [tasks, setTasks] = useState<StudentTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [taskSubmitting, setTaskSubmitting] = useState<number | null>(null);
   const [analysisRecords, setAnalysisRecords] = useState<StudentSpacetimeAnalysis[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisForm, setAnalysisForm] = useState({
@@ -116,6 +135,96 @@ const StudentWorkspacePage = () => {
   const focusScopeHint = focusScopePlaceholder[analysisForm.analysisType];
   const analysisTypeHint = spacetimeTypeDescriptions[analysisForm.analysisType];
 
+  const fetchGallery = useCallback(async () => {
+    try {
+      const response = await client.get('/student/gallery');
+      const data = (response.data.gallery ?? []) as StudentGalleryItem[];
+      setGallery(data);
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
+
+  const fetchStudentTasks = useCallback(async () => {
+    setTasksLoading(true);
+    try {
+      const response = await client.get('/student/tasks');
+      const data = (response.data.tasks ?? []) as StudentTask[];
+      setTasks(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
+  const fetchJourney = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        setMessage(null);
+      }
+      setJourneyLoading(true);
+
+      try {
+        const response = await client.get('/student/life-journey');
+        const journey = response.data.journey as LifeJourneyResponse;
+        setJourneyData(journey);
+        setJourneyLocation(journey.locations[0] ?? null);
+        if (!silent) {
+          setMessage('人生行迹已更新');
+        }
+      } catch (error) {
+        console.error(error);
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          setMessage(error.response.data.message);
+        } else {
+          setMessage('加载人生行迹失败，请稍后再试');
+        }
+      } finally {
+        setJourneyLoading(false);
+      }
+    },
+    []
+  );
+
+  const handleSubmitTask = useCallback(
+    async (taskId: number, payload: Record<string, unknown>) => {
+      setTaskSubmitting(taskId);
+      try {
+        await client.post(`/student/tasks/${taskId}/submission`, { payload });
+        setMessage('任务提交成功');
+        await fetchStudentTasks();
+      } catch (error) {
+        console.error(error);
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          setMessage(error.response.data.message);
+        } else {
+          setMessage('任务提交失败，请稍后再试');
+        }
+      } finally {
+        setTaskSubmitting(null);
+      }
+    },
+    [fetchStudentTasks]
+  );
+
+  const handleSubmitWritingTask = async (taskId: number) => {
+    if (!generatedImage) {
+      setMessage('请先完成一次描述性写作并生成图像');
+      return;
+    }
+
+    const payload = {
+      feature: 'writing' as SessionTaskFeature,
+      imageId: generatedImage.imageId,
+      sceneDescription: generatedImage.sceneDescription,
+      style: generatedImage.style,
+      submittedAt: new Date().toISOString()
+    };
+
+    await handleSubmitTask(taskId, payload);
+  };
+
   useEffect(() => {
     const fetchSession = async () => {
       try {
@@ -135,15 +244,6 @@ const StudentWorkspacePage = () => {
       }
     };
 
-    const fetchGallery = async () => {
-      try {
-        const response = await client.get('/student/gallery');
-        setGallery(response.data.gallery ?? []);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
     const fetchSpacetime = async () => {
       try {
         const response = await client.get('/student/spacetime');
@@ -156,8 +256,9 @@ const StudentWorkspacePage = () => {
     fetchSession();
     fetchChatHistory();
     fetchGallery();
+    fetchStudentTasks();
     fetchSpacetime();
-  }, []);
+  }, [fetchGallery, fetchStudentTasks]);
 
   useEffect(() => {
     if (!sessionInfo) {
@@ -173,15 +274,31 @@ const StudentWorkspacePage = () => {
 
   useEffect(() => {
     if (activeFeature === 'journey' && !journeyData && !journeyLoading) {
-      handleGenerateJourney(true);
+      fetchJourney(true);
     }
-  }, [activeFeature, journeyData, journeyLoading]);
+  }, [activeFeature, journeyData, journeyLoading, fetchJourney]);
 
   useEffect(() => {
     if (journeyData) {
       setJourneyLocation(journeyData.locations[0] ?? null);
     }
   }, [journeyData]);
+
+  useEffect(() => {
+    if (activeFeature === 'gallery') {
+      fetchGallery();
+    }
+  }, [activeFeature, fetchGallery]);
+
+  useEffect(() => {
+    if (!selectedGalleryItem) {
+      return;
+    }
+    const latest = gallery.find((item) => item.imageId === selectedGalleryItem.imageId);
+    if (latest && (latest.likeCount !== selectedGalleryItem.likeCount || latest.commentCount !== selectedGalleryItem.commentCount)) {
+      setSelectedGalleryItem(latest);
+    }
+  }, [gallery, selectedGalleryItem]);
 
   const handleSendMessage = async () => {
     if (!pendingMessage.trim()) return;
@@ -273,8 +390,7 @@ const StudentWorkspacePage = () => {
       setEditInstruction('');
 
       if (updatedImage.isShared) {
-        const galleryResponse = await client.get('/student/gallery');
-        setGallery(galleryResponse.data.gallery ?? []);
+        await fetchGallery();
       }
     } catch (error) {
       console.error(error);
@@ -302,8 +418,7 @@ const StudentWorkspacePage = () => {
       await client.post(`/student/images/${generatedImage.imageId}/share`);
       setGeneratedImage({ ...generatedImage, isShared: true });
       setMessage('作品已分享到课堂画廊');
-      const response = await client.get('/student/gallery');
-      setGallery(response.data.gallery ?? []);
+      await fetchGallery();
     } catch (error) {
       console.error(error);
       if (error instanceof AxiosError && error.response?.data?.message) {
@@ -453,34 +568,42 @@ const StudentWorkspacePage = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleGenerateJourney = async (silent = false) => {
-    if (!silent) {
-      setMessage(null);
-    }
-    setJourneyLoading(true);
-
+  const loadGalleryComments = useCallback(async (imageId: number) => {
+    setGalleryCommentsLoading(true);
     try {
-      const response = await client.post('/student/life-journey', {});
-      const journey = response.data.journey as LifeJourneyResponse;
-      setJourneyData(journey);
-      setJourneyLocation(journey.locations[0] ?? null);
-      if (!silent) {
-        setMessage('人生行迹已更新');
-      }
+      const response = await client.get(`/student/gallery/${imageId}/comments`);
+      const comments = (response.data.comments ?? []) as GalleryComment[];
+      const recent = comments.slice(-3);
+      setSelectedGalleryComments(comments);
+      setGallery((prev) =>
+        prev.map((item) =>
+          item.imageId === imageId
+            ? { ...item, commentCount: comments.length, recentComments: recent }
+            : item
+        )
+      );
+      setSelectedGalleryItem((prev) =>
+        prev && prev.imageId === imageId
+          ? { ...prev, commentCount: comments.length, recentComments: recent }
+          : prev
+      );
     } catch (error) {
       console.error(error);
       if (error instanceof AxiosError && error.response?.data?.message) {
         setMessage(error.response.data.message);
       } else {
-        setMessage('生成人生行迹失败，请稍后再试');
+        setMessage('加载评论失败，请稍后再试');
       }
     } finally {
-      setJourneyLoading(false);
+      setGalleryCommentsLoading(false);
     }
-  };
+  }, [setMessage]);
 
   const handleGalleryItemClick = (item: StudentGalleryItem) => {
     setSelectedGalleryItem(item);
+    setGalleryCommentInput('');
+    setSelectedGalleryComments([...(item.recentComments ?? [])]);
+    loadGalleryComments(item.imageId);
   };
 
   const handleKeepEditedImage = () => {
@@ -508,8 +631,7 @@ const StudentWorkspacePage = () => {
       setEditComparison(null);
       setMessage('已恢复为编辑前的版本');
       if (revertedImage.isShared) {
-        const galleryResponse = await client.get('/student/gallery');
-        setGallery(galleryResponse.data.gallery ?? []);
+        await fetchGallery();
       }
     } catch (error) {
       console.error(error);
@@ -523,8 +645,98 @@ const StudentWorkspacePage = () => {
     }
   };
 
+  const handleToggleGalleryLike = async (imageId: number) => {
+    setGalleryLikeProcessing(imageId);
+    try {
+      const response = await client.post(`/student/gallery/${imageId}/like`);
+      const result = response.data as { liked: boolean; likeCount: number };
+      setGallery((prev) =>
+        prev.map((item) =>
+          item.imageId === imageId
+            ? { ...item, likedByMe: result.liked, likeCount: result.likeCount }
+            : item
+        )
+      );
+      setSelectedGalleryItem((prev) =>
+        prev && prev.imageId === imageId
+          ? { ...prev, likedByMe: result.liked, likeCount: result.likeCount }
+          : prev
+      );
+    } catch (error) {
+      console.error(error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('点赞失败，请稍后再试');
+      }
+    } finally {
+      setGalleryLikeProcessing(null);
+    }
+  };
+
+  const handleSubmitGalleryComment = async () => {
+    if (!selectedGalleryItem) {
+      return;
+    }
+
+    const content = galleryCommentInput.trim();
+    if (!content) {
+      setMessage('请输入评论内容');
+      return;
+    }
+
+    setGalleryCommentSubmitting(true);
+    try {
+      const response = await client.post(`/student/gallery/${selectedGalleryItem.imageId}/comments`, {
+        content
+      });
+      const { comment, commentCount } = response.data as { comment: GalleryComment; commentCount: number };
+      setSelectedGalleryComments((prev) => [...prev, comment]);
+      setGallery((prev) =>
+        prev.map((item) =>
+          item.imageId === selectedGalleryItem.imageId
+            ? {
+                ...item,
+                commentCount,
+                recentComments: [...item.recentComments, comment].slice(-3)
+              }
+            : item
+        )
+      );
+      setSelectedGalleryItem((prev) =>
+        prev && prev.imageId === selectedGalleryItem.imageId
+          ? {
+              ...prev,
+              commentCount,
+              recentComments: [...prev.recentComments, comment].slice(-3)
+            }
+          : prev
+      );
+      setGalleryCommentInput('');
+      setMessage('评论已发布');
+    } catch (error) {
+      console.error(error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        setMessage(error.response.data.message);
+      } else {
+        setMessage('发布评论失败，请稍后再试');
+      }
+    } finally {
+      setGalleryCommentSubmitting(false);
+    }
+  };
+
   const closeGalleryPreview = () => {
     setSelectedGalleryItem(null);
+    setSelectedGalleryComments([]);
+    setGalleryCommentInput('');
+    setGalleryLikeProcessing(null);
+    setGalleryCommentsLoading(false);
+  };
+
+  const goToFeature = (feature: SessionTaskFeature) => {
+    const target = taskFeatureToTab[feature];
+    setActiveFeature(target);
   };
 
   const handleLogout = () => {
@@ -571,6 +783,81 @@ const StudentWorkspacePage = () => {
         </section>
 
         {message ? <p className="mt-4 text-center text-sm text-blue-600">{message}</p> : null}
+
+        {(tasksLoading || tasks.length > 0) ? (
+          <Card className="mt-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">课堂任务清单</h2>
+                <p className="text-xs text-gray-500">完成指定功能后记得提交成果</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchStudentTasks()}
+                className="text-xs text-blue-500 transition hover:text-blue-700"
+              >
+                刷新
+              </button>
+            </div>
+            {tasksLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500" />
+                正在获取任务，请稍候...
+              </div>
+            ) : tasks.length === 0 ? (
+              <p className="text-sm text-gray-500">暂无教师布置的任务。</p>
+            ) : (
+              <ul className="space-y-3">
+                {tasks.map((task) => {
+                  const completed = Boolean(task.submission);
+                  const statusLabel = completed
+                    ? task.submission?.status === 'resubmitted'
+                      ? '已重新提交'
+                      : '已提交'
+                    : task.isRequired
+                      ? '待完成'
+                      : '可选任务';
+                  const statusClass = completed ? 'text-emerald-600' : task.isRequired ? 'text-orange-500' : 'text-gray-400';
+                  return (
+                    <li key={task.taskId} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{task.title}</p>
+                          {task.description ? <p className="text-xs text-gray-500">{task.description}</p> : null}
+                        </div>
+                        <span className={`text-xs font-medium ${statusClass}`}>{statusLabel}</span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                        <GradientButton
+                          variant="secondary"
+                          onClick={() => goToFeature(task.feature)}
+                        >
+                          前往完成
+                        </GradientButton>
+                        {task.feature === 'writing' ? (
+                          <GradientButton
+                            variant="primary"
+                            onClick={() => handleSubmitWritingTask(task.taskId)}
+                            disabled={taskSubmitting === task.taskId}
+                          >
+                            {taskSubmitting === task.taskId ? '提交中...' : completed ? '重新提交成果' : '提交写作成果'}
+                          </GradientButton>
+                        ) : task.feature === 'workshop' ? (
+                          <span className="text-gray-500">请在协作创作面板中提交成果</span>
+                        ) : null}
+                        {completed && task.submission ? (
+                          <span className="text-gray-400">
+                            最近提交：{new Date(task.submission.updatedAt).toLocaleString('zh-CN')}
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+        ) : null}
 
         <section className="mt-6">
           {activeFeature === 'chat' ? (
@@ -715,8 +1002,8 @@ const StudentWorkspacePage = () => {
                   <h2 className="text-xl font-semibold text-gray-900">人生行迹 - {journeyData?.heroName ?? sessionInfo?.authorName ?? '主角'}</h2>
                   <p className="text-sm text-gray-500">结合课堂人物自动生成的行迹地图，点击地点查看详细信息。</p>
                 </div>
-                <GradientButton variant="primary" onClick={() => handleGenerateJourney()} disabled={journeyLoading}>
-                  {journeyLoading ? '生成中...' : journeyData ? '重新生成' : '生成行迹'}
+                <GradientButton variant="primary" onClick={() => fetchJourney()} disabled={journeyLoading}>
+                  {journeyLoading ? '加载中...' : journeyData ? '刷新行迹' : '加载行迹'}
                 </GradientButton>
               </div>
 
@@ -826,7 +1113,13 @@ const StudentWorkspacePage = () => {
             </Card>
           ) : null}
 
-          {activeFeature === 'workshop' ? <WorkshopPanel /> : null}
+          {activeFeature === 'workshop' ? (
+            <WorkshopPanel
+              tasks={tasks}
+              onSubmitTask={handleSubmitTask}
+              submittingTaskId={taskSubmitting}
+            />
+          ) : null}
 
           {activeFeature === 'analysis' ? (
             <Card className="space-y-5">
@@ -1010,10 +1303,26 @@ const StudentWorkspacePage = () => {
                     className="overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
                   >
                     <img src={item.imageUrl} alt={item.sceneDescription} className="h-32 w-full object-cover" />
-                    <div className="space-y-1 px-4 py-3 text-sm">
-                      <p className="font-semibold text-gray-800">作者：{item.username}</p>
-                      <p className="text-gray-600">风格：{item.style}</p>
-                      <p className="truncate text-gray-500">{item.sceneDescription}</p>
+                    <div className="space-y-2 px-4 py-3 text-sm">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-gray-800">作者：{item.username}</p>
+                        <p className="text-gray-600">风格：{item.style}</p>
+                        <p className="truncate text-gray-500">{item.sceneDescription}</p>
+                      </div>
+                      {item.recentComments.length > 0 ? (
+                        <div className="space-y-1 rounded-lg bg-gray-50 p-2 text-xs text-gray-600">
+                          {item.recentComments.map((comment) => (
+                            <p key={comment.commentId} className="line-clamp-2">
+                              <span className="font-medium text-gray-700">{comment.username}：</span>
+                              {comment.content}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>👍 {item.likeCount}</span>
+                        <span>💬 {item.commentCount}</span>
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -1072,6 +1381,58 @@ const StudentWorkspacePage = () => {
                 <div className="rounded-xl bg-gray-50 p-4">
                   <p className="text-xs font-semibold text-gray-500">场景描述</p>
                   <p className="mt-2 whitespace-pre-line text-gray-700">{selectedGalleryItem.sceneDescription}</p>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleGalleryLike(selectedGalleryItem.imageId)}
+                    disabled={galleryLikeProcessing === selectedGalleryItem.imageId}
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm transition ${
+                      selectedGalleryItem.likedByMe ? 'bg-pink-100 text-pink-600' : 'border border-pink-200 text-pink-500 hover:bg-pink-50'
+                    } ${galleryLikeProcessing === selectedGalleryItem.imageId ? 'opacity-70' : ''}`}
+                  >
+                    {selectedGalleryItem.likedByMe ? '❤️ 已点赞' : '👍 点赞'}
+                    <span className="text-xs text-pink-400">{selectedGalleryItem.likeCount}</span>
+                  </button>
+                  <span>共 {selectedGalleryItem.commentCount} 条评论</span>
+                </div>
+                <div className="rounded-xl border border-gray-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-gray-700">评论区</h4>
+                    {galleryCommentsLoading ? <span className="text-xs text-gray-400">加载中...</span> : null}
+                  </div>
+                  <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+                    {selectedGalleryComments.length === 0 ? (
+                      <p className="text-xs text-gray-400">暂时还没有评论，欢迎留下你对作品的想法。</p>
+                    ) : (
+                      selectedGalleryComments.map((comment) => (
+                        <div key={comment.commentId} className="rounded-lg bg-gray-50 p-2">
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span className="font-medium text-gray-700">{comment.username}</span>
+                            <span>{new Date(comment.createdAt).toLocaleString('zh-CN')}</span>
+                          </div>
+                          <p className="mt-1 text-sm text-gray-700">{comment.content}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <TextArea
+                      label="发表新评论"
+                      value={galleryCommentInput}
+                      onChange={(event) => setGalleryCommentInput(event.target.value)}
+                      rows={3}
+                    />
+                    <div className="flex justify-end">
+                      <GradientButton
+                        variant="primary"
+                        onClick={handleSubmitGalleryComment}
+                        disabled={galleryCommentSubmitting || !selectedGalleryItem}
+                      >
+                        {galleryCommentSubmitting ? '发布中...' : '发布评论'}
+                      </GradientButton>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
