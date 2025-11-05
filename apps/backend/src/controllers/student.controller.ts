@@ -21,7 +21,7 @@ import {
   listImageComments
 } from '../services/image.service.js';
 import { createSpacetimeAnalysis, listStudentSpacetimeAnalyses } from '../services/spacetime.service.js';
-import { ensureSessionLifeJourney } from '../services/journey.service.js';
+import { getStoredLifeJourney } from '../services/journey.service.js';
 import { listTasksForStudent, submitTaskForStudent } from '../services/task.service.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -363,8 +363,14 @@ export const getLifeJourney = async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    const journey = await ensureSessionLifeJourney(req.user.sessionId);
-    res.json({ journey });
+    const stored = await getStoredLifeJourney(req.user.sessionId);
+    if (!stored) {
+      return res.status(404).json({ message: '人生行迹尚未生成，请联系教师稍后再试' });
+    }
+    res.json({
+      journey: stored.journey,
+      generatedAt: stored.generatedAt ? stored.generatedAt.toISOString() : null
+    });
   } catch (error) {
     console.error(error);
     res.status(400).json({ message: (error as Error).message });

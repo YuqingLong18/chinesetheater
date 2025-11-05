@@ -199,6 +199,8 @@ const StudentWorkspacePage = () => {
         }
       } catch (error) {
         console.error(error);
+        setJourneyData(null);
+        setJourneyLocation(null);
         if (error instanceof AxiosError && error.response?.data?.message) {
           setMessage(error.response.data.message);
         } else {

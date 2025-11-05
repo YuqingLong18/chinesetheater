@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/Card';
 import TextInput from '../../components/TextInput';
@@ -6,6 +7,8 @@ import GradientButton from '../../components/GradientButton';
 import client from '../../api/client';
 import { useAuthStore } from '../../store/authStore';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
+import LifeJourneyMap from '../../components/LifeJourneyMap';
+import { CalendarDaysIcon, MapPinIcon, BookOpenIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import type {
   TeacherSession,
   StudentCredential,
@@ -13,7 +16,9 @@ import type {
   SessionActivityMessage,
   SpacetimeAnalysisType,
   TeacherTaskSummary,
-  SessionTaskFeature
+  SessionTaskFeature,
+  LifeJourneyResponse,
+  LifeJourneyLocation
 } from '../../types';
 import TextArea from '../../components/TextArea';
 
@@ -87,6 +92,16 @@ const spacetimeTypeLabels: Record<SpacetimeAnalysisType, string> = {
   custom: '自定义方案'
 };
 
+const JOURNEY_POLL_INITIAL_DELAY = 5000;
+const JOURNEY_POLL_DELAY_INCREMENT = 5000;
+const JOURNEY_POLL_MAX_ATTEMPTS = 30;
+
+type JourneyFetchResult = {
+  generatedAt: string | null;
+  generating: boolean;
+  errorMessage: string | null;
+};
+
 const TeacherDashboardPage = () => {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logoutTeacher);
@@ -112,6 +127,16 @@ const TeacherDashboardPage = () => {
   const [activityFilter, setActivityFilter] = useState<'all' | number>('all');
   const [activityError, setActivityError] = useState<string | null>(null);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set<number>());
+  const [journeyData, setJourneyData] = useState<LifeJourneyResponse | null>(null);
+  const [journeyGeneratedAt, setJourneyGeneratedAt] = useState<string | null>(null);
+  const [journeyLocation, setJourneyLocation] = useState<LifeJourneyLocation | null>(null);
+  const [journeyLoading, setJourneyLoading] = useState(false);
+  const [journeyError, setJourneyError] = useState<string | null>(null);
+  const [journeyNotice, setJourneyNotice] = useState<string | null>(null);
+  const [journeyInstructions, setJourneyInstructions] = useState('');
+  const [journeyComposerVisible, setJourneyComposerVisible] = useState(false);
+  const [journeyGenerating, setJourneyGenerating] = useState(false);
+  const journeyPollTimeoutRef = useRef<number | null>(null);
 
   const currentSession = useMemo(
     () => sessions.find((session) => session.sessionId === selectedSession) || null,
@@ -155,6 +180,130 @@ const TeacherDashboardPage = () => {
     }
   };
 
+  const fetchJourney = useCallback(
+    async (sessionId: number, silent = false): Promise<JourneyFetchResult | null> => {
+      if (!silent) {
+        setJourneyError(null);
+        setJourneyNotice(null);
+        setJourneyLoading(true);
+      }
+
+      try {
+        const response = await client.get(`/teacher/sessions/${sessionId}/life-journey`);
+        const journey = response.data?.journey as LifeJourneyResponse | null | undefined;
+        const generatedAt = typeof response.data?.generatedAt === 'string' ? response.data.generatedAt : null;
+        const generating = Boolean(response.data?.generating);
+        const rawError =
+          typeof response.data?.errorMessage === 'string' ? response.data.errorMessage.trim() : '';
+        const errorMessage = rawError.length > 0 ? rawError : null;
+
+        setJourneyData(journey ?? null);
+        setJourneyGeneratedAt(generatedAt);
+        setJourneyLocation(journey?.locations?.[0] ?? null);
+        setJourneyGenerating(generating);
+
+        if (errorMessage && !generating) {
+          setJourneyError(errorMessage);
+          setJourneyNotice(null);
+        } else if (!errorMessage) {
+          setJourneyError(null);
+        }
+
+        if (!silent) {
+          if (generating) {
+            setJourneyNotice('AI 正在生成新的行迹，请稍候...');
+          } else if (journey) {
+            setJourneyNotice('最新人生行迹已加载');
+          } else if (!errorMessage) {
+            setJourneyNotice('尚未生成行迹，请点击上方按钮进行生成。');
+          }
+        }
+
+        return { generatedAt, generating, errorMessage };
+      } catch (error) {
+        if (!silent) {
+          if (axios.isAxiosError(error) && error.response?.data?.message) {
+            setJourneyError(error.response.data.message);
+          } else {
+            setJourneyError('人生行迹加载失败，请稍后再试');
+          }
+          setJourneyNotice(null);
+        }
+        return null;
+      } finally {
+        if (!silent) {
+          setJourneyLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  const scheduleJourneyPoll = useCallback(
+    (sessionId: number, previousGeneratedAt: string | null, attempt = 0) => {
+      if (journeyPollTimeoutRef.current) {
+        window.clearTimeout(journeyPollTimeoutRef.current);
+        journeyPollTimeoutRef.current = null;
+      }
+
+      if (attempt >= JOURNEY_POLL_MAX_ATTEMPTS) {
+        setJourneyGenerating(false);
+        setJourneyError('AI 生成时间较长，请稍后再试或调整提示内容。');
+        setJourneyNotice(null);
+        return;
+      }
+
+      const delay = Math.min(
+        JOURNEY_POLL_INITIAL_DELAY + attempt * JOURNEY_POLL_DELAY_INCREMENT,
+        JOURNEY_POLL_INITIAL_DELAY + JOURNEY_POLL_DELAY_INCREMENT * JOURNEY_POLL_MAX_ATTEMPTS
+      );
+
+      journeyPollTimeoutRef.current = window.setTimeout(async () => {
+        const result = await fetchJourney(sessionId, true);
+
+        if (!result) {
+          if (attempt + 1 >= JOURNEY_POLL_MAX_ATTEMPTS) {
+            journeyPollTimeoutRef.current = null;
+            setJourneyGenerating(false);
+            setJourneyError('无法获取生成进度，请稍后再试。');
+            setJourneyNotice(null);
+            return;
+          }
+
+          scheduleJourneyPoll(sessionId, previousGeneratedAt, attempt + 1);
+          return;
+        }
+
+        const { generatedAt, generating, errorMessage } = result;
+        const baselineGeneratedAt = generatedAt ?? previousGeneratedAt;
+
+        if (errorMessage && !generating) {
+          journeyPollTimeoutRef.current = null;
+          setJourneyGenerating(false);
+          setJourneyError(errorMessage);
+          setJourneyNotice(null);
+          return;
+        }
+
+        if (!generating) {
+          journeyPollTimeoutRef.current = null;
+          setJourneyGenerating(false);
+          if (generatedAt && previousGeneratedAt && generatedAt !== previousGeneratedAt) {
+            setJourneyNotice('人生行迹生成成功，学生端已同步更新');
+          } else if (generatedAt && !previousGeneratedAt) {
+            setJourneyNotice('人生行迹生成成功，学生端已同步更新');
+          } else if (!errorMessage) {
+            setJourneyNotice('AI 生成完成，本次结果与之前一致。');
+          }
+          return;
+        }
+
+        scheduleJourneyPoll(sessionId, baselineGeneratedAt, attempt + 1);
+      }, delay);
+    },
+    [fetchJourney]
+  );
+
   const refreshCurrentSession = async () => {
     if (!selectedSession) {
       await fetchSessions();
@@ -165,12 +314,18 @@ const TeacherDashboardPage = () => {
     setMessage(null);
 
     try {
-      await Promise.all([
+      const [, , , , journeyResult] = await Promise.all([
         fetchSessions(),
         fetchStudents(selectedSession),
         fetchAnalytics(selectedSession),
-        fetchTaskSummary(selectedSession)
+        fetchTaskSummary(selectedSession),
+        fetchJourney(selectedSession, true)
       ]);
+
+      if (journeyResult?.generating) {
+        scheduleJourneyPoll(selectedSession, journeyResult.generatedAt ?? null, 0);
+      }
+
       setMessage('课堂数据已刷新');
     } catch (error) {
       console.error(error);
@@ -185,14 +340,44 @@ const TeacherDashboardPage = () => {
   }, []);
 
   useEffect(() => {
+    if (journeyPollTimeoutRef.current) {
+      window.clearTimeout(journeyPollTimeoutRef.current);
+      journeyPollTimeoutRef.current = null;
+    }
+
     if (selectedSession) {
+      setJourneyError(null);
+      setJourneyNotice(null);
+      setJourneyComposerVisible(false);
+      setJourneyInstructions('');
       fetchStudents(selectedSession);
       fetchAnalytics(selectedSession);
       fetchTaskSummary(selectedSession);
+      void fetchJourney(selectedSession, true).then((result) => {
+        if (result?.generating) {
+          scheduleJourneyPoll(selectedSession, result.generatedAt ?? null, 0);
+        }
+      });
     } else {
       setTaskSummary(null);
+      setJourneyData(null);
+      setJourneyLocation(null);
+      setJourneyGeneratedAt(null);
+      setJourneyError(null);
+      setJourneyNotice(null);
+      setJourneyComposerVisible(false);
+      setJourneyInstructions('');
+      setJourneyGenerating(false);
     }
-  }, [selectedSession]);
+  }, [selectedSession, fetchJourney, scheduleJourneyPoll]);
+
+  useEffect(() => {
+    return () => {
+      if (journeyPollTimeoutRef.current) {
+        window.clearTimeout(journeyPollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!activityModalOpen || !selectedSession) {
@@ -398,6 +583,103 @@ const TeacherDashboardPage = () => {
     }
   };
 
+  const handleOpenJourneyComposer = () => {
+    if (!selectedSession) {
+      setJourneyError('请先选择课堂会话');
+      return;
+    }
+    setJourneyError(null);
+    setJourneyNotice(null);
+    setJourneyComposerVisible(true);
+  };
+
+  const handleCancelJourneyComposer = () => {
+    if (journeyLoading) {
+      return;
+    }
+    setJourneyComposerVisible(false);
+  };
+
+  const handleGenerateJourney = async () => {
+    if (!selectedSession) {
+      setJourneyError('请先选择课堂会话');
+      return;
+    }
+
+    setJourneyLoading(true);
+    setJourneyError(null);
+    setJourneyNotice(null);
+
+    try {
+      const previousGeneratedAt = journeyGeneratedAt ?? null;
+      const rawInstructions = journeyInstructions;
+      const trimmed = rawInstructions.trim();
+
+      const response = await client.post(`/teacher/sessions/${selectedSession}/life-journey`, {
+        instructions: trimmed.length > 0 ? trimmed : undefined
+      });
+
+      setJourneyComposerVisible(false);
+      setJourneyInstructions(rawInstructions);
+
+      if (response.status === 202) {
+        setJourneyNotice('AI 正在生成新的行迹，请稍候...');
+        setJourneyGenerating(true);
+        scheduleJourneyPoll(selectedSession, previousGeneratedAt, 0);
+        return;
+      }
+
+      const journey = response.data?.journey as LifeJourneyResponse | null | undefined;
+      const generatedAt = typeof response.data?.generatedAt === 'string' ? response.data.generatedAt : null;
+
+      setJourneyData(journey ?? null);
+      setJourneyGeneratedAt(generatedAt);
+      setJourneyLocation(journey?.locations?.[0] ?? null);
+      setJourneyGenerating(false);
+      setJourneyNotice('人生行迹生成成功，学生端已同步更新');
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        if (error.response.status === 409) {
+          setJourneyGenerating(true);
+          setJourneyNotice('AI 正在生成新的行迹，请稍候...');
+          scheduleJourneyPoll(selectedSession, journeyGeneratedAt ?? null, 0);
+        } else if (error.response.data?.message) {
+          setJourneyError(error.response.data.message as string);
+          setJourneyGenerating(false);
+        } else {
+          setJourneyError('生成人生行迹失败，请稍后再试');
+          setJourneyGenerating(false);
+        }
+      } else {
+        setJourneyError('生成人生行迹失败，请稍后再试');
+        setJourneyGenerating(false);
+      }
+    } finally {
+      setJourneyLoading(false);
+    }
+  };
+
+  const handleRefreshJourney = useCallback(async () => {
+    if (!selectedSession) {
+      return;
+    }
+    const result = await fetchJourney(selectedSession);
+    if (result?.generating) {
+      scheduleJourneyPoll(selectedSession, result.generatedAt ?? null, 0);
+    }
+  }, [selectedSession, fetchJourney, scheduleJourneyPoll]);
+
+  const formattedJourneyGeneratedAt = useMemo(() => {
+    if (!journeyGeneratedAt) {
+      return null;
+    }
+    const date = new Date(journeyGeneratedAt);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return date.toLocaleString('zh-CN');
+  }, [journeyGeneratedAt]);
+
   const handleOpenActivityModal = () => {
     if (!selectedSession) {
       setMessage('请先选择课堂会话');
@@ -594,6 +876,199 @@ const TeacherDashboardPage = () => {
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          <Card className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  人生行迹{journeyData ? ` - ${journeyData.heroName}` : ''}
+                </h2>
+                <p className="text-sm text-gray-500">生成或预览作者的 AI 行迹地图，学生端将同步更新。</p>
+                {journeyGenerating ? (
+                  <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-600">
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+                    AI 正在生成中...
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex flex-col items-end gap-2 text-right text-xs text-gray-500">
+                {formattedJourneyGeneratedAt ? <span>最近生成：{formattedJourneyGeneratedAt}</span> : null}
+                <div className="flex flex-wrap justify-end gap-2">
+                  {selectedSession ? (
+                    <GradientButton
+                      variant="secondary"
+                      onClick={handleRefreshJourney}
+                      disabled={journeyLoading || journeyGenerating}
+                    >
+                      {journeyLoading ? '加载中...' : '刷新预览'}
+                    </GradientButton>
+                  ) : null}
+                  <GradientButton
+                    variant="primary"
+                    onClick={handleOpenJourneyComposer}
+                    disabled={!selectedSession || journeyLoading || journeyGenerating}
+                  >
+                    {journeyData ? '重新生成人生行迹' : '用AI创建人生行迹'}
+                  </GradientButton>
+                </div>
+              </div>
+            </div>
+
+            {!selectedSession ? (
+              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+                请选择课堂会话以配置人生行迹。
+              </p>
+            ) : (
+              <>
+                {journeyNotice ? (
+                  <p className="rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-600">{journeyNotice}</p>
+                ) : null}
+                {journeyError ? (
+                  <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{journeyError}</p>
+                ) : null}
+                {journeyComposerVisible ? (
+                  <div className="space-y-3 rounded-xl border border-dashed border-purple-200 bg-purple-50/60 p-4">
+                    <p className="text-xs text-purple-700">
+                      可补充必须保留的时间段、地点或事件，AI 将在生成结果中原样呈现这些信息。
+                    </p>
+                    <TextArea
+                      label="补充信息（可选）"
+                      value={journeyInstructions}
+                      onChange={(e) => setJourneyInstructions(e.target.value)}
+                      rows={4}
+                      maxLength={2000}
+                      hint="最多2000字，可按行列出需强制保留的时间段与地点。"
+                      placeholder={"例如：\n- 732-735年需呈现“洛阳（今河南洛阳）”\n- 必须包含黄州阶段，坐标 30.44, 114.32"}
+                    />
+                    <div className="flex flex-wrap gap-3">
+                      <GradientButton
+                        variant="primary"
+                        onClick={handleGenerateJourney}
+                        disabled={journeyLoading || journeyGenerating}
+                      >
+                        {journeyLoading ? '生成中...' : '生成人生行迹'}
+                      </GradientButton>
+                      <GradientButton
+                        variant="secondary"
+                        type="button"
+                        onClick={handleCancelJourneyComposer}
+                        disabled={journeyLoading}
+                      >
+                        取消
+                      </GradientButton>
+                    </div>
+                  </div>
+                ) : null}
+                {(journeyLoading || (journeyGenerating && !journeyData)) && !journeyComposerVisible ? (
+                  <div className="flex h-48 flex-col items-center justify-center gap-2 text-sm text-gray-500">
+                    <span className="inline-flex h-10 w-10 animate-spin rounded-full border-2 border-blue-200 border-t-blue-500" />
+                    正在处理人生行迹，请稍候...
+                  </div>
+                ) : journeyData ? (
+                  <>
+                    <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
+                      <div className="h-[420px] overflow-hidden rounded-2xl border border-gray-200">
+                        <LifeJourneyMap locations={journeyData.locations} onSelect={setJourneyLocation} />
+                      </div>
+                      <aside className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                        {(() => {
+                          const current = journeyLocation ?? journeyData.locations[0];
+                          if (!current) {
+                            return <p className="text-sm text-gray-500">暂无行迹信息。</p>;
+                          }
+                          return (
+                            <div className="space-y-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-blue-600">{current.name}</h3>
+                                  {current.modernName ? (
+                                    <p className="text-xs text-gray-500">今 {current.modernName}</p>
+                                  ) : null}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setJourneyLocation(null)}
+                                  className="text-xs text-gray-400 transition hover:text-gray-600"
+                                >
+                                  重置
+                                </button>
+                              </div>
+                              <div className="rounded-xl bg-white p-3 shadow-sm">
+                                <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                                  <CalendarDaysIcon className="h-4 w-4" />
+                                  <span>{current.period}</span>
+                                </div>
+                                <p className="mt-2 text-sm text-gray-600">{current.description}</p>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                  <MapPinIcon className="h-4 w-4 text-blue-500" />
+                                  关键事件
+                                </div>
+                                <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
+                                  {current.events.map((event, index) => (
+                                    <li key={index}>{event}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                  <SparklesIcon className="h-4 w-4 text-blue-500" />
+                                  地理风物
+                                </div>
+                                <div className="rounded-lg border border-dashed border-blue-200 bg-white p-3 text-xs text-gray-600">
+                                  <p><strong>地形：</strong>{current.geography.terrain}</p>
+                                  <p className="mt-1"><strong>植被：</strong>{current.geography.vegetation}</p>
+                                  <p className="mt-1"><strong>水域：</strong>{current.geography.water}</p>
+                                  <p className="mt-1"><strong>气候：</strong>{current.geography.climate}</p>
+                                </div>
+                              </div>
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                  <BookOpenIcon className="h-4 w-4 text-blue-500" />
+                                  代表诗作
+                                </div>
+                                {current.poems.map((poem, index) => (
+                                  <div
+                                    key={index}
+                                    className="rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 p-3 text-sm text-gray-700"
+                                  >
+                                    <p className="font-semibold text-blue-600">《{poem.title}》</p>
+                                    <p className="mt-1 whitespace-pre-line leading-relaxed">{poem.content}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </aside>
+                    </div>
+                    <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                      <h3 className="text-lg font-semibold text-gray-900">行迹概览</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-gray-600">{journeyData.summary}</p>
+                      {journeyData.highlights && journeyData.highlights.length > 0 ? (
+                        <div className="mt-4 space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-700">关键看点</h4>
+                          <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
+                            {journeyData.highlights.map((item, idx) => (
+                              <li key={idx}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {journeyData.routeNotes ? (
+                        <p className="mt-3 text-xs text-gray-500">{journeyData.routeNotes}</p>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+                    暂未生成行迹。点击上方按钮即可调用 AI 构建可共享的人生行迹。
+                  </p>
+                )}
+              </>
+            )}
           </Card>
         </section>
 

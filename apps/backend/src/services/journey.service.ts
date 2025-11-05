@@ -3,6 +3,10 @@ import { prisma } from '../lib/prisma.js';
 import { callOpenRouter } from '../lib/openrouter.js';
 import { env } from '../config/env.js';
 
+const LIFE_JOURNEY_TIMEOUT_MS = 300_000; // 5分钟
+const LIFE_JOURNEY_RETRY_DELAY_MS = 5_000;
+const LIFE_JOURNEY_MAX_RETRIES = 1;
+
 const poemSchema = z.object({
   title: z.string(),
   content: z.string()
@@ -38,7 +42,38 @@ const lifeJourneySchema = z.object({
 
 export type LifeJourneyResponse = z.infer<typeof lifeJourneySchema>;
 
-const buildJourneyPrompt = (authorName: string, literatureTitle: string) => `请基于以下要求，仅以 JSON 形式返回数据：
+export interface GenerateLifeJourneyOptions {
+  instructions?: string;
+}
+
+export interface StoredLifeJourney {
+  journey: LifeJourneyResponse;
+  generatedAt: Date | null;
+}
+
+const sanitizeTeacherInstructions = (input?: string): string[] => {
+  if (!input) {
+    return [];
+  }
+  return input
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line.replace(/`/g, '´'));
+};
+
+const buildJourneyPrompt = (authorName: string, literatureTitle: string, instructions?: string) => {
+  const teacherGuidance = sanitizeTeacherInstructions(instructions);
+  const teacherGuidanceBlock = teacherGuidance.length
+    ? `
+附加要求：
+- 以下教师提供的行迹信息必须完整保留（不可改写时间段与地点名称，可补充细节）：
+${teacherGuidance.map((line, index) => `${index + 1}. ${line}`).join('\n')}
+- 如果教师提供了经纬度，请直接使用；若未提供，请在相应地理区域内合理推断。
+- 可根据需要为同一地点补充事件与诗作，但不得删除上述信息。`
+    : '';
+
+  return `请基于以下要求，仅以 JSON 形式返回数据：
 {
   "heroName": "${authorName}",
   "summary": "简要概述其一生行迹",
@@ -70,8 +105,9 @@ const buildJourneyPrompt = (authorName: string, literatureTitle: string) => `请
 2. 经纬度请使用十进制小数，精确到0.01；
 3. 诗句需为原文，不要简化；
 4. 所有输出使用标准 JSON，不可包含额外文本。
-5. 若不确定经纬度，可提供大致位置但应在对应地理区域内。
+5. 若不确定经纬度，可提供大致位置但应在对应地理区域内。${teacherGuidanceBlock}
 如果该作者地理轨迹较少，可加入相关地点的人文背景。`;
+};
 
 const parseStoredJourney = (value: unknown) => {
   if (!value) {
@@ -91,11 +127,15 @@ const storeLifeJourney = async (sessionId: number, journey: LifeJourneyResponse)
   });
 };
 
-export const generateLifeJourney = async (sessionId: number) => {
+export const generateLifeJourney = async (sessionId: number, options: GenerateLifeJourneyOptions = {}) => {
   const session = await prisma.session.findUnique({ where: { sessionId } });
   if (!session) {
     throw new Error('课堂会话不存在');
   }
+
+  const trimmedInstructions = options.instructions?.trim();
+  const normalizedInstructions =
+    trimmedInstructions && trimmedInstructions.length > 0 ? trimmedInstructions : undefined;
 
   const payload = {
     model: env.OPENROUTER_CHAT_MODEL,
@@ -107,7 +147,7 @@ export const generateLifeJourney = async (sessionId: number) => {
       },
       {
         role: 'user',
-        content: buildJourneyPrompt(session.authorName, session.literatureTitle)
+        content: buildJourneyPrompt(session.authorName, session.literatureTitle, normalizedInstructions)
       }
     ]
   };
@@ -116,7 +156,10 @@ export const generateLifeJourney = async (sessionId: number) => {
     '/chat/completions',
     {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      timeoutMs: LIFE_JOURNEY_TIMEOUT_MS,
+      maxRetries: LIFE_JOURNEY_MAX_RETRIES,
+      retryDelayMs: LIFE_JOURNEY_RETRY_DELAY_MS
     }
   );
 
@@ -198,20 +241,31 @@ export const ensureSessionLifeJourney = async (sessionId: number): Promise<LifeJ
   return generated;
 };
 
-export const getStoredLifeJourney = async (sessionId: number): Promise<LifeJourneyResponse | null> => {
+export const getStoredLifeJourney = async (sessionId: number): Promise<StoredLifeJourney | null> => {
   const session = await prisma.session.findUnique({
     where: { sessionId },
     select: {
-      lifeJourney: true
+      lifeJourney: true,
+      lifeJourneyGeneratedAt: true
     }
   });
 
   const existing = parseStoredJourney(session?.lifeJourney ?? null);
-  return existing;
+  if (!existing) {
+    return null;
+  }
+
+  return {
+    journey: existing,
+    generatedAt: session?.lifeJourneyGeneratedAt ?? null
+  };
 };
 
-export const refreshSessionLifeJourney = async (sessionId: number): Promise<LifeJourneyResponse> => {
-  const generated = await generateLifeJourney(sessionId);
+export const refreshSessionLifeJourney = async (
+  sessionId: number,
+  options: GenerateLifeJourneyOptions = {}
+): Promise<LifeJourneyResponse> => {
+  const generated = await generateLifeJourney(sessionId, options);
   await storeLifeJourney(sessionId, generated);
   return generated;
 };

@@ -1,6 +1,5 @@
 import { prisma } from '../lib/prisma.js';
 import type { Session } from '@prisma/client';
-import { refreshSessionLifeJourney } from './journey.service.js';
 import { createSessionTasks, type CreateSessionTaskInput } from './task.service.js';
 
 export const createSession = async (
@@ -34,16 +33,6 @@ export const createSession = async (
     return created;
   });
 
-  try {
-    await refreshSessionLifeJourney(session.sessionId);
-    const updated = await prisma.session.findUnique({ where: { sessionId: session.sessionId } });
-    if (updated) {
-      return updated;
-    }
-  } catch (error) {
-    console.error('预生成人生行迹失败', error);
-  }
-
   return session;
 };
 
@@ -65,4 +54,17 @@ export const getTeacherSessions = (teacherId: number) =>
   prisma.session.findMany({
     where: { teacherId },
     orderBy: { createdAt: 'desc' }
+  });
+
+export const getSessionById = (sessionId: number) =>
+  prisma.session.findUnique({
+    where: { sessionId },
+    select: {
+      sessionId: true,
+      teacherId: true,
+      sessionName: true,
+      authorName: true,
+      literatureTitle: true,
+      lifeJourneyGeneratedAt: true
+    }
   });

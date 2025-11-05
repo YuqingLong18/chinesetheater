@@ -11,5 +11,8 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  build: {
+    emptyOutDir: false // 保留 dist 目录下的托管文件（例如 .user.ini），避免构建清理时报错
   }
 });
