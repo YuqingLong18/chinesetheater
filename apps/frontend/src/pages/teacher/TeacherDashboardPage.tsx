@@ -197,9 +197,14 @@ const TeacherDashboardPage = () => {
           typeof response.data?.errorMessage === 'string' ? response.data.errorMessage.trim() : '';
         const errorMessage = rawError.length > 0 ? rawError : null;
 
-        setJourneyData(journey ?? null);
-        setJourneyGeneratedAt(generatedAt);
-        setJourneyLocation(journey?.locations?.[0] ?? null);
+        // Always update journey data if we got valid data (even if generating)
+        // This ensures existing trajectory is shown while generating
+        if (journey) {
+          setJourneyData(journey);
+          setJourneyGeneratedAt(generatedAt);
+          setJourneyLocation(journey.locations?.[0] ?? null);
+        }
+
         setJourneyGenerating(generating);
 
         if (errorMessage && !generating) {
@@ -278,6 +283,7 @@ const TeacherDashboardPage = () => {
         const baselineGeneratedAt = generatedAt ?? previousGeneratedAt;
 
         if (errorMessage && !generating) {
+          // Generation failed - stop polling, show error, keep existing data
           journeyPollTimeoutRef.current = null;
           setJourneyGenerating(false);
           setJourneyError(errorMessage);
@@ -286,18 +292,23 @@ const TeacherDashboardPage = () => {
         }
 
         if (!generating) {
+          // Generation completed - stop polling
           journeyPollTimeoutRef.current = null;
           setJourneyGenerating(false);
+          
+          // Only show success message if we got a new generation
           if (generatedAt && previousGeneratedAt && generatedAt !== previousGeneratedAt) {
             setJourneyNotice('人生行迹生成成功，学生端已同步更新');
           } else if (generatedAt && !previousGeneratedAt) {
             setJourneyNotice('人生行迹生成成功，学生端已同步更新');
           } else if (!errorMessage) {
+            // Same timestamp - no new generation
             setJourneyNotice('AI 生成完成，本次结果与之前一致。');
           }
           return;
         }
 
+        // Still generating - continue polling
         scheduleJourneyPoll(sessionId, baselineGeneratedAt, attempt + 1);
       }, delay);
     },
@@ -594,15 +605,22 @@ const TeacherDashboardPage = () => {
   };
 
   const handleCancelJourneyComposer = () => {
-    if (journeyLoading) {
+    if (journeyLoading || journeyGenerating) {
+      // Don't allow canceling during generation
       return;
     }
     setJourneyComposerVisible(false);
+    setJourneyInstructions('');
   };
 
   const handleGenerateJourney = async () => {
     if (!selectedSession) {
       setJourneyError('请先选择课堂会话');
+      return;
+    }
+
+    if (journeyGenerating) {
+      // Prevent multiple simultaneous generation requests
       return;
     }
 
@@ -612,6 +630,7 @@ const TeacherDashboardPage = () => {
 
     try {
       const previousGeneratedAt = journeyGeneratedAt ?? null;
+      const previousJourneyData = journeyData; // Store previous data
       const rawInstructions = journeyInstructions;
       const trimmed = rawInstructions.trim();
 
@@ -619,33 +638,46 @@ const TeacherDashboardPage = () => {
         instructions: trimmed.length > 0 ? trimmed : undefined
       });
 
+      // Close composer immediately to show generating state
       setJourneyComposerVisible(false);
       setJourneyInstructions(rawInstructions);
 
       if (response.status === 202) {
-        setJourneyNotice('AI 正在生成新的行迹，请稍候...');
+        // Generation started - show explicit generating state
         setJourneyGenerating(true);
+        setJourneyNotice('AI 正在生成新的行迹，请稍候...');
+        // Start polling for completion
         scheduleJourneyPoll(selectedSession, previousGeneratedAt, 0);
         return;
       }
 
+      // Immediate response (shouldn't happen with current backend, but handle gracefully)
       const journey = response.data?.journey as LifeJourneyResponse | null | undefined;
       const generatedAt = typeof response.data?.generatedAt === 'string' ? response.data.generatedAt : null;
 
-      setJourneyData(journey ?? null);
-      setJourneyGeneratedAt(generatedAt);
-      setJourneyLocation(journey?.locations?.[0] ?? null);
-      setJourneyGenerating(false);
-      setJourneyNotice('人生行迹生成成功，学生端已同步更新');
+      if (journey) {
+        // Only update if we got valid data
+        setJourneyData(journey);
+        setJourneyGeneratedAt(generatedAt);
+        setJourneyLocation(journey.locations?.[0] ?? null);
+        setJourneyGenerating(false);
+        setJourneyNotice('人生行迹生成成功，学生端已同步更新');
+      } else {
+        // No data in response - keep existing data
+        setJourneyGenerating(false);
+        setJourneyNotice('生成请求已提交，请稍候查看结果');
+      }
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         if (error.response.status === 409) {
+          // Already generating - sync state and start polling
           setJourneyGenerating(true);
           setJourneyNotice('AI 正在生成新的行迹，请稍候...');
           scheduleJourneyPoll(selectedSession, journeyGeneratedAt ?? null, 0);
         } else if (error.response.data?.message) {
           setJourneyError(error.response.data.message as string);
           setJourneyGenerating(false);
+          // Keep existing journey data on error
         } else {
           setJourneyError('生成人生行迹失败，请稍后再试');
           setJourneyGenerating(false);
@@ -909,7 +941,11 @@ const TeacherDashboardPage = () => {
                     onClick={handleOpenJourneyComposer}
                     disabled={!selectedSession || journeyLoading || journeyGenerating}
                   >
-                    {journeyData ? '重新生成人生行迹' : '用AI创建人生行迹'}
+                    {journeyGenerating
+                      ? '正在生成中...'
+                      : journeyData
+                        ? '重新生成人生行迹'
+                        : '用AI创建人生行迹'}
                   </GradientButton>
                 </div>
               </div>
@@ -921,10 +957,20 @@ const TeacherDashboardPage = () => {
               </p>
             ) : (
               <>
-                {journeyNotice ? (
+                {journeyGenerating ? (
+                  <div className="rounded-lg border-2 border-blue-200 bg-blue-50 px-4 py-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+                      <p className="text-sm font-medium text-blue-700">
+                        AI 正在生成人生行迹，请稍候...（这可能需要几分钟时间）
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                {journeyNotice && !journeyGenerating ? (
                   <p className="rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-600">{journeyNotice}</p>
                 ) : null}
-                {journeyError ? (
+                {journeyError && !journeyGenerating ? (
                   <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{journeyError}</p>
                 ) : null}
                 {journeyComposerVisible ? (
@@ -947,23 +993,28 @@ const TeacherDashboardPage = () => {
                         onClick={handleGenerateJourney}
                         disabled={journeyLoading || journeyGenerating}
                       >
-                        {journeyLoading ? '生成中...' : '生成人生行迹'}
+                        {journeyGenerating
+                          ? '正在生成中...'
+                          : journeyLoading
+                            ? '提交中...'
+                            : '生成人生行迹'}
                       </GradientButton>
                       <GradientButton
                         variant="secondary"
                         type="button"
                         onClick={handleCancelJourneyComposer}
-                        disabled={journeyLoading}
+                        disabled={journeyLoading || journeyGenerating}
                       >
                         取消
                       </GradientButton>
                     </div>
                   </div>
                 ) : null}
-                {(journeyLoading || (journeyGenerating && !journeyData)) && !journeyComposerVisible ? (
-                  <div className="flex h-48 flex-col items-center justify-center gap-2 text-sm text-gray-500">
-                    <span className="inline-flex h-10 w-10 animate-spin rounded-full border-2 border-blue-200 border-t-blue-500" />
-                    正在处理人生行迹，请稍候...
+                {journeyGenerating && !journeyData && !journeyComposerVisible ? (
+                  <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/50">
+                    <span className="inline-flex h-12 w-12 animate-spin rounded-full border-3 border-blue-200 border-t-blue-600" />
+                    <p className="text-sm font-medium text-blue-700">AI 正在生成人生行迹...</p>
+                    <p className="text-xs text-blue-600">这可能需要几分钟时间，请耐心等待</p>
                   </div>
                 ) : journeyData ? (
                   <>

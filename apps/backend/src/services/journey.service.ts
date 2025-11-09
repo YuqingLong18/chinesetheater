@@ -102,10 +102,14 @@ ${teacherGuidance.map((line, index) => `${index + 1}. ${line}`).join('\n')}
 }
 要求：
 1. 生成至少6个地点，涵盖${authorName}人生主要阶段；
-2. 经纬度请使用十进制小数，精确到0.01；
-3. 诗句需为原文，不要简化；
-4. 所有输出使用标准 JSON，不可包含额外文本。
-5. 若不确定经纬度，可提供大致位置但应在对应地理区域内。${teacherGuidanceBlock}
+2. 每个地点必须包含：
+   - 至少1个关键事件（events数组不能为空）
+   - 至少1首代表诗作（poems数组不能为空，包含title和content）
+3. 经纬度请使用十进制小数，精确到0.01；
+4. 诗句需为原文，不要简化；
+5. 所有输出使用标准 JSON，不可包含额外文本。
+6. 若不确定经纬度，可提供大致位置但应在对应地理区域内。
+7. 每个地点的events和poems数组必须至少包含1个元素。${teacherGuidanceBlock}
 如果该作者地理轨迹较少，可加入相关地点的人文背景。`;
 };
 
@@ -143,7 +147,7 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
       {
         role: 'system',
         content:
-          '你是一位擅长根据人物生平生成行迹地图的数据专家，请严格按照用户指定的 JSON 模板返回数据，禁止输出其他文字。'
+          '你是一位擅长根据人物生平生成行迹地图的数据专家。请严格按照用户指定的 JSON 模板返回数据，禁止输出其他文字。\n\n重要要求：\n- 每个地点的 events 数组必须包含至少1个非空字符串\n- 每个地点的 poems 数组必须包含至少1个对象，每个对象必须包含 title 和 content 字段\n- locations 数组必须包含至少3个地点\n- 所有字段都必须符合模板要求'
       },
       {
         role: 'user',
@@ -208,7 +212,36 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
 
   const validation = lifeJourneySchema.safeParse(parsed);
   if (!validation.success) {
-    throw new Error(`生成数据不完整：${validation.error.issues[0]?.message ?? '未知错误'}`);
+    // Provide more detailed error messages
+    const issues = validation.error.issues;
+    const errorMessages = issues.map((issue) => {
+      const path = issue.path.join('.');
+      // Extract location index if available
+      const locationMatch = path.match(/locations\[(\d+)\]/);
+      const locationIndex = locationMatch ? parseInt(locationMatch[1], 10) + 1 : null;
+      const locationPrefix = locationIndex ? `第${locationIndex}个地点` : '某些地点';
+      
+      if (path.includes('events')) {
+        return `${locationPrefix}缺少关键事件（events），每个地点至少需要1个事件`;
+      }
+      if (path.includes('poems')) {
+        return `${locationPrefix}缺少代表诗作（poems），每个地点至少需要1首诗`;
+      }
+      if (path.includes('locations') && path.includes('length')) {
+        return '地点数量不足，至少需要3个地点';
+      }
+      return `${path}: ${issue.message}`;
+    });
+    
+    // Log the raw response for debugging
+    console.error('Life journey validation failed:', {
+      error: errorMessages[0],
+      issues: issues.map(i => ({ path: i.path.join('.'), message: i.message })),
+      rawResponseLength: raw.length,
+      parsedKeys: parsed && typeof parsed === 'object' ? Object.keys(parsed) : []
+    });
+    
+    throw new Error(`生成数据不完整：${errorMessages[0] ?? '未知错误'}`);
   }
 
   // 为缺失 id 的地点补充递增 id
@@ -261,11 +294,21 @@ export const getStoredLifeJourney = async (sessionId: number): Promise<StoredLif
   };
 };
 
+/**
+ * Regenerates and stores a new life journey for a session.
+ * Only updates the database if generation succeeds and validates correctly.
+ * Throws an error if generation or validation fails, leaving existing data unchanged.
+ */
 export const refreshSessionLifeJourney = async (
   sessionId: number,
   options: GenerateLifeJourneyOptions = {}
 ): Promise<LifeJourneyResponse> => {
+  // Generate new journey - throws error if generation or validation fails
   const generated = await generateLifeJourney(sessionId, options);
+  
+  // Only store if generation succeeded and validated correctly
+  // If this throws, the existing journey remains unchanged
   await storeLifeJourney(sessionId, generated);
+  
   return generated;
 };
