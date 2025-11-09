@@ -144,11 +144,17 @@ const WorkshopPanel = ({ tasks = [], onSubmitTask, submittingTaskId }: WorkshopP
 
     eventSource.addEventListener('member.join', (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as WorkshopMember;
-      setSelectedRoom((prev) => (prev ? { ...prev, members: [...prev.members, payload] } : prev));
+      setSelectedRoom((prev) => {
+        if (!prev) return prev;
+        const updatedMembers = [...prev.members, payload].sort((a, b) => a.orderIndex - b.orderIndex);
+        return { ...prev, members: updatedMembers };
+      });
       setRooms((prev) =>
-        prev.map((room) =>
-          room.roomId === payload.roomId ? { ...room, members: [...room.members, payload] } : room
-        )
+        prev.map((room) => {
+          if (room.roomId !== payload.roomId) return room;
+          const updatedMembers = [...room.members, payload].sort((a, b) => a.orderIndex - b.orderIndex);
+          return { ...room, members: updatedMembers };
+        })
       );
     });
 
@@ -384,12 +390,67 @@ const WorkshopPanel = ({ tasks = [], onSubmitTask, submittingTaskId }: WorkshopP
     ) ?? null;
   }, [selectedRoom, currentUserRole, currentUserId]);
 
+  // Calculate contribution counts for each member
+  const memberContributionCounts = useMemo(() => {
+    if (!selectedRoom) return new Map<number, number>();
+    const counts = new Map<number, number>();
+    (selectedRoom.contributions ?? []).forEach((contribution) => {
+      const count = counts.get(contribution.memberId) ?? 0;
+      counts.set(contribution.memberId, count + 1);
+    });
+    return counts;
+  }, [selectedRoom]);
+
+  // Determine whose turn it is based on fair rotation logic
+  const currentTurnMember = useMemo(() => {
+    if (!selectedRoom || selectedRoom.members.length === 0) return null;
+    
+    const members = selectedRoom.members;
+    const contributions = selectedRoom.contributions ?? [];
+    
+    // Find members who haven't written yet
+    const membersWithoutContributions = members.filter(
+      (member) => (memberContributionCounts.get(member.memberId) ?? 0) === 0
+    );
+    
+    if (membersWithoutContributions.length > 0) {
+      // Priority: members who haven't written yet, in order of joining
+      return membersWithoutContributions[0];
+    }
+    
+    // All members have written, find minimum count
+    const counts = Array.from(memberContributionCounts.values());
+    if (counts.length === 0) return members[0];
+    
+    const minCount = Math.min(...counts);
+    const membersWithMinCount = members.filter(
+      (member) => (memberContributionCounts.get(member.memberId) ?? 0) === minCount
+    );
+    
+    // Use currentTurnOrder as hint, but ensure fairness
+    const currentOrder = selectedRoom.currentTurnOrder ?? 0;
+    const currentMember = members[currentOrder];
+    
+    if (currentMember && membersWithMinCount.some((m) => m.memberId === currentMember.memberId)) {
+      return currentMember;
+    }
+    
+    // Find first member with min count, starting from currentOrder
+    for (let i = 0; i < members.length; i++) {
+      const idx = (currentOrder + i) % members.length;
+      const member = members[idx];
+      if (membersWithMinCount.some((m) => m.memberId === member.memberId)) {
+        return member;
+      }
+    }
+    
+    return membersWithMinCount[0] ?? members[0];
+  }, [selectedRoom, memberContributionCounts]);
+
   const isMyTurn = useMemo(() => {
-    if (!selectedRoom || !myMember) return false;
-    const index = selectedRoom.members.findIndex((member) => member.memberId === myMember.memberId);
-    const current = selectedRoom.currentTurnOrder ?? 0;
-    return index === current;
-  }, [selectedRoom, myMember]);
+    if (!selectedRoom || !myMember || !currentTurnMember) return false;
+    return currentTurnMember.memberId === myMember.memberId;
+  }, [selectedRoom, myMember, currentTurnMember]);
 
   const activeBoard = useMemo(() => {
     if (!selectedRoom || selectedRoom.mode !== 'adaptation') {
@@ -861,8 +922,13 @@ const WorkshopPanel = ({ tasks = [], onSubmitTask, submittingTaskId }: WorkshopP
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <h3 className="text-sm font-semibold text-gray-700">当前轮到</h3>
                     <p className="mt-2 text-lg font-semibold text-blue-600">
-                      {isMyTurn ? '轮到你了，请续写下一句' : selectedRoom.members[selectedRoom.currentTurnOrder ?? 0]?.nickname ?? '等待成员加入'}
+                      {isMyTurn ? '轮到你了，请续写下一句' : currentTurnMember?.nickname ?? '等待成员加入'}
                     </p>
+                    {currentTurnMember && !isMyTurn ? (
+                      <p className="mt-1 text-xs text-gray-500">
+                        已写 {(memberContributionCounts.get(currentTurnMember.memberId) ?? 0)} 次
+                      </p>
+                    ) : null}
                     <TextArea
                       label="下一句诗词"
                       placeholder="请续写下一句，保持意境连贯"
@@ -906,14 +972,47 @@ const WorkshopPanel = ({ tasks = [], onSubmitTask, submittingTaskId }: WorkshopP
                 <div className="space-y-4">
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <h3 className="text-sm font-semibold text-gray-700">成员一览</h3>
-                    <ul className="mt-2 space-y-1 text-sm text-gray-600">
-                      {selectedRoom.members.map((member) => (
-                        <li key={member.memberId} className="flex items-center justify-between">
-                          <span>{member.nickname}</span>
-                          <span className="text-xs text-gray-400">{member.isActive ? '在线' : '离线'}</span>
-                        </li>
-                      ))}
+                    <ul className="mt-2 space-y-2 text-sm">
+                      {selectedRoom.members.map((member) => {
+                        const contributionCount = memberContributionCounts.get(member.memberId) ?? 0;
+                        const isCurrentTurn = currentTurnMember?.memberId === member.memberId;
+                        const isMe = myMember?.memberId === member.memberId;
+                        return (
+                          <li
+                            key={member.memberId}
+                            className={`flex items-center justify-between rounded-lg px-2 py-1.5 ${
+                              isCurrentTurn ? 'bg-blue-100 border border-blue-300' : 'bg-white border border-gray-200'
+                            }`}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-medium ${isCurrentTurn ? 'text-blue-700' : 'text-gray-700'}`}>
+                                  {member.nickname}
+                                  {isMe ? ' (我)' : ''}
+                                </span>
+                                {isCurrentTurn ? (
+                                  <span className="inline-flex items-center rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-medium text-white">
+                                    轮到
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
+                                <span>已写 {contributionCount} 次</span>
+                                <span className={member.isActive ? 'text-green-600' : 'text-gray-400'}>
+                                  {member.isActive ? '● 在线' : '○ 离线'}
+                                </span>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
+                    <div className="mt-3 rounded-lg bg-blue-50 px-2 py-1.5 text-xs text-blue-700">
+                      <p className="font-medium">接龙规则</p>
+                      <p className="mt-1 text-blue-600">
+                        优先给还没写过的成员机会，当大家都写了相同次数后，再轮回到第一个成员。
+                      </p>
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-gray-200 bg-blue-50/60 p-4 text-sm text-gray-700">

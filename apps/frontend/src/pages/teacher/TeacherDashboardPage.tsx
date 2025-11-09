@@ -18,7 +18,8 @@ import type {
   TeacherTaskSummary,
   SessionTaskFeature,
   LifeJourneyResponse,
-  LifeJourneyLocation
+  LifeJourneyLocation,
+  LifeJourneyEntryInput
 } from '../../types';
 import TextArea from '../../components/TextArea';
 
@@ -133,7 +134,7 @@ const TeacherDashboardPage = () => {
   const [journeyLoading, setJourneyLoading] = useState(false);
   const [journeyError, setJourneyError] = useState<string | null>(null);
   const [journeyNotice, setJourneyNotice] = useState<string | null>(null);
-  const [journeyInstructions, setJourneyInstructions] = useState('');
+  const [journeyEntries, setJourneyEntries] = useState<LifeJourneyEntryInput[]>([]);
   const [journeyComposerVisible, setJourneyComposerVisible] = useState(false);
   const [journeyGenerating, setJourneyGenerating] = useState(false);
   const journeyPollTimeoutRef = useRef<number | null>(null);
@@ -360,7 +361,7 @@ const TeacherDashboardPage = () => {
       setJourneyError(null);
       setJourneyNotice(null);
       setJourneyComposerVisible(false);
-      setJourneyInstructions('');
+      setJourneyEntries([]);
       fetchStudents(selectedSession);
       fetchAnalytics(selectedSession);
       fetchTaskSummary(selectedSession);
@@ -377,7 +378,7 @@ const TeacherDashboardPage = () => {
       setJourneyError(null);
       setJourneyNotice(null);
       setJourneyComposerVisible(false);
-      setJourneyInstructions('');
+      setJourneyEntries([]);
       setJourneyGenerating(false);
     }
   }, [selectedSession, fetchJourney, scheduleJourneyPoll]);
@@ -610,7 +611,48 @@ const TeacherDashboardPage = () => {
       return;
     }
     setJourneyComposerVisible(false);
-    setJourneyInstructions('');
+    setJourneyEntries([]);
+  };
+
+  const handleAddJourneyEntry = () => {
+    setJourneyEntries((prev) => [
+      ...prev,
+      {
+        startYear: null,
+        endYear: null,
+        ancientName: null,
+        modernName: null,
+        events: null,
+        geography: null,
+        poems: null
+      }
+    ]);
+  };
+
+  const handleRemoveJourneyEntry = (index: number) => {
+    setJourneyEntries((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateJourneyEntry = <K extends keyof LifeJourneyEntryInput>(
+    index: number,
+    key: K,
+    value: LifeJourneyEntryInput[K]
+  ) => {
+    setJourneyEntries((prev) =>
+      prev.map((entry, i) => (i === index ? { ...entry, [key]: value } : entry))
+    );
+  };
+
+  const hasAnyEntryField = (entry: LifeJourneyEntryInput): boolean => {
+    return !!(
+      entry.startYear ||
+      entry.endYear ||
+      (entry.ancientName && entry.ancientName.trim()) ||
+      (entry.modernName && entry.modernName.trim()) ||
+      (entry.events && entry.events.trim()) ||
+      (entry.geography && entry.geography.trim()) ||
+      (entry.poems && entry.poems.trim())
+    );
   };
 
   const handleGenerateJourney = async () => {
@@ -631,16 +673,15 @@ const TeacherDashboardPage = () => {
     try {
       const previousGeneratedAt = journeyGeneratedAt ?? null;
       const previousJourneyData = journeyData; // Store previous data
-      const rawInstructions = journeyInstructions;
-      const trimmed = rawInstructions.trim();
+      const validEntries = journeyEntries.filter(hasAnyEntryField);
 
       const response = await client.post(`/teacher/sessions/${selectedSession}/life-journey`, {
-        instructions: trimmed.length > 0 ? trimmed : undefined
+        entries: validEntries.length > 0 ? validEntries : undefined
       });
 
       // Close composer immediately to show generating state
       setJourneyComposerVisible(false);
-      setJourneyInstructions(rawInstructions);
+      // Keep entries for potential retry
 
       if (response.status === 202) {
         // Generation started - show explicit generating state
@@ -974,20 +1015,131 @@ const TeacherDashboardPage = () => {
                   <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{journeyError}</p>
                 ) : null}
                 {journeyComposerVisible ? (
-                  <div className="space-y-3 rounded-xl border border-dashed border-purple-200 bg-purple-50/60 p-4">
-                    <p className="text-xs text-purple-700">
-                      可补充必须保留的时间段、地点或事件，AI 将在生成结果中原样呈现这些信息。
-                    </p>
-                    <TextArea
-                      label="补充信息（可选）"
-                      value={journeyInstructions}
-                      onChange={(e) => setJourneyInstructions(e.target.value)}
-                      rows={4}
-                      maxLength={2000}
-                      hint="最多2000字，可按行列出需强制保留的时间段与地点。"
-                      placeholder={"例如：\n- 732-735年需呈现“洛阳（今河南洛阳）”\n- 必须包含黄州阶段，坐标 30.44, 114.32"}
-                    />
+                  <div className="space-y-4 rounded-xl border border-dashed border-purple-200 bg-purple-50/60 p-4">
+                    <div>
+                      <p className="text-sm font-medium text-purple-800">
+                        添加行迹条目（可选）
+                      </p>
+                      <p className="mt-1 text-xs text-purple-600">
+                        每个条目至少填写一个字段，AI将严格遵循您提供的信息并补充缺失部分。除了您提供的条目外，AI还会继续补全该作者的其他重要行迹。
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {journeyEntries.map((entry, index) => (
+                        <div
+                          key={index}
+                          className="rounded-lg border border-purple-200 bg-white p-4 shadow-sm"
+                        >
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-sm font-semibold text-purple-700">
+                              条目 {index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveJourneyEntry(index)}
+                              className="text-xs text-red-500 transition hover:text-red-700"
+                              disabled={journeyLoading || journeyGenerating}
+                            >
+                              删除
+                            </button>
+                          </div>
+
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <TextInput
+                              label="起始年份"
+                              type="number"
+                              placeholder="例如：732"
+                              value={entry.startYear?.toString() ?? ''}
+                              onChange={(e) =>
+                                handleUpdateJourneyEntry(
+                                  index,
+                                  'startYear',
+                                  e.target.value ? parseInt(e.target.value, 10) : null
+                                )
+                              }
+                              disabled={journeyLoading || journeyGenerating}
+                            />
+                            <TextInput
+                              label="终止年份"
+                              type="number"
+                              placeholder="例如：735"
+                              value={entry.endYear?.toString() ?? ''}
+                              onChange={(e) =>
+                                handleUpdateJourneyEntry(
+                                  index,
+                                  'endYear',
+                                  e.target.value ? parseInt(e.target.value, 10) : null
+                                )
+                              }
+                              disabled={journeyLoading || journeyGenerating}
+                            />
+                            <TextInput
+                              label="古代地名"
+                              placeholder="例如：洛阳"
+                              value={entry.ancientName ?? ''}
+                              onChange={(e) =>
+                                handleUpdateJourneyEntry(index, 'ancientName', e.target.value || null)
+                              }
+                              disabled={journeyLoading || journeyGenerating}
+                            />
+                            <TextInput
+                              label="现代地名"
+                              placeholder="例如：河南洛阳"
+                              value={entry.modernName ?? ''}
+                              onChange={(e) =>
+                                handleUpdateJourneyEntry(index, 'modernName', e.target.value || null)
+                              }
+                              disabled={journeyLoading || journeyGenerating}
+                            />
+                          </div>
+
+                          <div className="mt-3 space-y-3">
+                            <TextArea
+                              label="关键事件"
+                              placeholder="描述该时间段发生的关键事件"
+                              value={entry.events ?? ''}
+                              onChange={(e) =>
+                                handleUpdateJourneyEntry(index, 'events', e.target.value || null)
+                              }
+                              rows={2}
+                              disabled={journeyLoading || journeyGenerating}
+                            />
+                            <TextArea
+                              label="地理风物"
+                              placeholder="描述该地点的地形、植被、水域、气候等"
+                              value={entry.geography ?? ''}
+                              onChange={(e) =>
+                                handleUpdateJourneyEntry(index, 'geography', e.target.value || null)
+                              }
+                              rows={2}
+                              disabled={journeyLoading || journeyGenerating}
+                            />
+                            <TextArea
+                              label="代表诗作"
+                              placeholder="列出该阶段或地点的代表诗作（标题和内容）"
+                              value={entry.poems ?? ''}
+                              onChange={(e) =>
+                                handleUpdateJourneyEntry(index, 'poems', e.target.value || null)
+                              }
+                              rows={3}
+                              disabled={journeyLoading || journeyGenerating}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
                     <div className="flex flex-wrap gap-3">
+                      <GradientButton
+                        variant="secondary"
+                        type="button"
+                        onClick={handleAddJourneyEntry}
+                        disabled={journeyLoading || journeyGenerating}
+                      >
+                        添加条目
+                      </GradientButton>
+                      <div className="flex-1" />
                       <GradientButton
                         variant="primary"
                         onClick={handleGenerateJourney}

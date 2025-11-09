@@ -238,10 +238,35 @@ export const generateTeacherSessionLifeJourney = async (req: AuthRequest, res: R
     return res.status(400).json({ message: '会话ID无效' });
   }
 
-  const rawInstructions = typeof req.body?.instructions === 'string' ? req.body.instructions : '';
-  const instructions = rawInstructions.trim();
-  if (instructions.length > 2000) {
-    return res.status(400).json({ message: '补充信息请控制在2000字以内' });
+  // Validate entries if provided
+  const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+  if (entries.length > 0) {
+    for (const entry of entries) {
+      if (entry.startYear && (typeof entry.startYear !== 'number' || entry.startYear < 0 || entry.startYear > 9999)) {
+        return res.status(400).json({ message: '起始年份无效' });
+      }
+      if (entry.endYear && (typeof entry.endYear !== 'number' || entry.endYear < 0 || entry.endYear > 9999)) {
+        return res.status(400).json({ message: '终止年份无效' });
+      }
+      if (entry.startYear && entry.endYear && entry.startYear > entry.endYear) {
+        return res.status(400).json({ message: '起始年份不能大于终止年份' });
+      }
+      if (entry.ancientName && typeof entry.ancientName !== 'string') {
+        return res.status(400).json({ message: '古代地名格式无效' });
+      }
+      if (entry.modernName && typeof entry.modernName !== 'string') {
+        return res.status(400).json({ message: '现代地名格式无效' });
+      }
+      if (entry.events && typeof entry.events !== 'string') {
+        return res.status(400).json({ message: '关键事件格式无效' });
+      }
+      if (entry.geography && typeof entry.geography !== 'string') {
+        return res.status(400).json({ message: '地理风物格式无效' });
+      }
+      if (entry.poems && typeof entry.poems !== 'string') {
+        return res.status(400).json({ message: '代表诗作格式无效' });
+      }
+    }
   }
 
   if (isJourneyGenerating(sessionId)) {
@@ -260,7 +285,7 @@ export const generateTeacherSessionLifeJourney = async (req: AuthRequest, res: R
     void (async () => {
       try {
         await refreshSessionLifeJourney(sessionId, {
-          instructions: instructions.length > 0 ? instructions : undefined
+          entries: entries.length > 0 ? entries : undefined
         });
         journeyGenerationErrors.delete(sessionId);
       } catch (error) {

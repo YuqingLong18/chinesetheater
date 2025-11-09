@@ -43,7 +43,17 @@ const lifeJourneySchema = z.object({
 export type LifeJourneyResponse = z.infer<typeof lifeJourneySchema>;
 
 export interface GenerateLifeJourneyOptions {
-  instructions?: string;
+  entries?: LifeJourneyEntryInput[];
+}
+
+export interface LifeJourneyEntryInput {
+  startYear?: number | null;
+  endYear?: number | null;
+  ancientName?: string | null;
+  modernName?: string | null;
+  events?: string | null;
+  geography?: string | null;
+  poems?: string | null;
 }
 
 export interface StoredLifeJourney {
@@ -51,26 +61,68 @@ export interface StoredLifeJourney {
   generatedAt: Date | null;
 }
 
-const sanitizeTeacherInstructions = (input?: string): string[] => {
-  if (!input) {
-    return [];
-  }
-  return input
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/`/g, '´'));
+const hasAnyField = (entry: LifeJourneyEntryInput): boolean => {
+  return !!(
+    entry.startYear ||
+    entry.endYear ||
+    (entry.ancientName && entry.ancientName.trim()) ||
+    (entry.modernName && entry.modernName.trim()) ||
+    (entry.events && entry.events.trim()) ||
+    (entry.geography && entry.geography.trim()) ||
+    (entry.poems && entry.poems.trim())
+  );
 };
 
-const buildJourneyPrompt = (authorName: string, literatureTitle: string, instructions?: string) => {
-  const teacherGuidance = sanitizeTeacherInstructions(instructions);
-  const teacherGuidanceBlock = teacherGuidance.length
+const formatEntryForPrompt = (entry: LifeJourneyEntryInput, index: number): string => {
+  const parts: string[] = [];
+  if (entry.startYear || entry.endYear) {
+    const period = entry.startYear && entry.endYear
+      ? `${entry.startYear}年 - ${entry.endYear}年`
+      : entry.startYear
+        ? `${entry.startYear}年 - ?`
+        : entry.endYear
+          ? `? - ${entry.endYear}年`
+          : '';
+    if (period) parts.push(`时间段：${period}`);
+  }
+  if (entry.ancientName?.trim()) {
+    parts.push(`古代地名：${entry.ancientName.trim()}`);
+  }
+  if (entry.modernName?.trim()) {
+    parts.push(`现代地名：${entry.modernName.trim()}`);
+  }
+  if (entry.events?.trim()) {
+    parts.push(`关键事件：${entry.events.trim()}`);
+  }
+  if (entry.geography?.trim()) {
+    parts.push(`地理风物：${entry.geography.trim()}`);
+  }
+  if (entry.poems?.trim()) {
+    parts.push(`代表诗作：${entry.poems.trim()}`);
+  }
+  return `条目${index + 1}：${parts.join('；')}`;
+};
+
+const buildJourneyPrompt = (authorName: string, literatureTitle: string, entries?: LifeJourneyEntryInput[]) => {
+  const validEntries = entries?.filter(hasAnyField) ?? [];
+  const teacherGuidanceBlock = validEntries.length > 0
     ? `
-附加要求：
-- 以下教师提供的行迹信息必须完整保留（不可改写时间段与地点名称，可补充细节）：
-${teacherGuidance.map((line, index) => `${index + 1}. ${line}`).join('\n')}
-- 如果教师提供了经纬度，请直接使用；若未提供，请在相应地理区域内合理推断。
-- 可根据需要为同一地点补充事件与诗作，但不得删除上述信息。`
+重要：教师提供了以下必须严格遵循的行迹条目（每个条目至少有一个字段已填写）。对于这些条目：
+1. 必须完整保留教师提供的所有信息（时间段、地名、事件、地理风物、诗作等）
+2. 对于教师未填写的字段，AI需要根据历史资料合理补充
+3. 时间段格式：如果提供了起始年份和终止年份，使用"起始年 - 终止年"格式；如果只提供了其中一个，使用"起始年 - ?"或"? - 终止年"格式
+4. 地名：如果提供了古代地名和现代地名，两者都必须保留；如果只提供了其中一个，AI需要补充另一个
+5. 关键事件：如果教师提供了事件描述，必须保留；如果未提供，AI需要根据该时间段和地点补充相关事件
+6. 地理风物：如果教师提供了地理风物描述，必须保留；如果未提供，AI需要根据该地点补充
+7. 代表诗作：如果教师提供了诗作信息，必须保留；如果未提供，AI需要根据该时间段和地点补充相关诗作
+
+教师提供的条目：
+${validEntries.map((entry, index) => formatEntryForPrompt(entry, index)).join('\n')}
+
+除了上述教师提供的条目外，AI还需要：
+1. 继续补全该作者人生行迹的其他重要阶段和地点，确保生成至少6个地点，涵盖${authorName}人生主要阶段
+2. **特别注意时间连贯性**：如果教师提供的条目之间存在时间空白，AI必须尽量搜集历史资料，在空白处补充中间阶段的地点，确保时间连贯。例如，如果教师提供了705年的条目和724年的条目，AI应该在705-724年之间补充中间阶段的地点
+3. 所有地点必须按时间顺序排列，相邻地点的时间段应该尽量连续`
     : '';
 
   return `请基于以下要求，仅以 JSON 形式返回数据：
@@ -101,15 +153,33 @@ ${teacherGuidance.map((line, index) => `${index + 1}. ${line}`).join('\n')}
   "routeNotes": "补充说明"
 }
 要求：
-1. 生成至少6个地点，涵盖${authorName}人生主要阶段；
-2. 每个地点必须包含：
+1. ${validEntries.length > 0 ? '首先，必须严格按照教师提供的条目生成对应的地点，保留教师提供的所有信息，并补充缺失字段。然后，' : ''}生成至少6个地点，涵盖${authorName}人生主要阶段；
+
+2. **时间连贯性要求（非常重要）**：
+   - locations数组必须按照时间顺序排列（从早到晚）
+   - 相邻地点的时间段应该尽量连续，避免出现大的时间空白（如上一个地点到705年，下一个地点就从724年开始）
+   - 请尽量搜集历史资料，在时间空白处补充中间阶段的地点或事件
+   - 如果某个时间段确实没有确切的史料记载，可以跳过，但应尽量缩小时间间隔
+   - 每个地点的period字段必须准确反映该阶段的时间范围，格式为"起始年 - 终止年"
+
+3. 每个地点必须包含：
    - 至少1个关键事件（events数组不能为空）
    - 至少1首代表诗作（poems数组不能为空，包含title和content）
-3. 经纬度请使用十进制小数，精确到0.01；
-4. 诗句需为原文，不要简化；
-5. 所有输出使用标准 JSON，不可包含额外文本。
-6. 若不确定经纬度，可提供大致位置但应在对应地理区域内。
-7. 每个地点的events和poems数组必须至少包含1个元素。${teacherGuidanceBlock}
+
+4. 经纬度请使用十进制小数，精确到0.01；
+
+5. 诗句需为原文，不要简化；
+
+6. 所有输出使用标准 JSON，不可包含额外文本。
+
+7. 若不确定经纬度，可提供大致位置但应在对应地理区域内。
+
+8. 每个地点的events和poems数组必须至少包含1个元素。
+
+9. 对于教师提供的条目，period字段必须使用"起始年 - 终止年"格式，如果只提供了起始年或终止年，使用"起始年 - ?"或"? - 终止年"格式。
+
+10. 请仔细查阅历史资料，确保生成的行迹时间连贯，尽量填补时间空白。如果确实存在无法填补的空白，请在routeNotes中简要说明原因。${teacherGuidanceBlock}
+
 如果该作者地理轨迹较少，可加入相关地点的人文背景。`;
 };
 
@@ -137,9 +207,7 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
     throw new Error('课堂会话不存在');
   }
 
-  const trimmedInstructions = options.instructions?.trim();
-  const normalizedInstructions =
-    trimmedInstructions && trimmedInstructions.length > 0 ? trimmedInstructions : undefined;
+  const validEntries = options.entries?.filter(hasAnyField) ?? [];
 
   const payload = {
     model: env.OPENROUTER_CHAT_MODEL,
@@ -147,11 +215,11 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
       {
         role: 'system',
         content:
-          '你是一位擅长根据人物生平生成行迹地图的数据专家。请严格按照用户指定的 JSON 模板返回数据，禁止输出其他文字。\n\n重要要求：\n- 每个地点的 events 数组必须包含至少1个非空字符串\n- 每个地点的 poems 数组必须包含至少1个对象，每个对象必须包含 title 和 content 字段\n- locations 数组必须包含至少3个地点\n- 所有字段都必须符合模板要求'
+          '你是一位擅长根据人物生平生成行迹地图的数据专家。请严格按照用户指定的 JSON 模板返回数据，禁止输出其他文字。\n\n重要要求：\n- 每个地点的 events 数组必须包含至少1个非空字符串\n- 每个地点的 poems 数组必须包含至少1个对象，每个对象必须包含 title 和 content 字段\n- locations 数组必须包含至少3个地点，且必须按时间顺序排列（从早到晚）\n- 所有字段都必须符合模板要求\n- 如果用户提供了必须遵循的条目，必须严格保留用户提供的所有信息，并补充缺失的字段\n- **时间连贯性至关重要**：请尽量搜集历史资料，确保相邻地点的时间段连续，避免出现大的时间空白。如果确实存在无法填补的空白，请在routeNotes中说明'
       },
       {
         role: 'user',
-        content: buildJourneyPrompt(session.authorName, session.literatureTitle, normalizedInstructions)
+        content: buildJourneyPrompt(session.authorName, session.literatureTitle, validEntries.length > 0 ? validEntries : undefined)
       }
     ]
   };

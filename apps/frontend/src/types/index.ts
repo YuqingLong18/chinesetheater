@@ -162,6 +162,16 @@ export interface LifeJourneyResponse {
   routeNotes?: string | null;
 }
 
+export interface LifeJourneyEntryInput {
+  startYear?: number | null;
+  endYear?: number | null;
+  ancientName?: string | null;
+  modernName?: string | null;
+  events?: string | null;
+  geography?: string | null;
+  poems?: string | null;
+}
+
 export type WorkshopMode = 'relay' | 'adaptation';
 export type WorkshopStatus = 'active' | 'completed' | 'archived';
 export type WorkshopContributionStatus = 'accepted' | 'pending' | 'retracted';

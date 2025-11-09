@@ -268,8 +268,7 @@ export const workshopService = {
           orderBy: { orderIndex: 'asc' }
         },
         contributions: {
-          orderBy: { orderIndex: 'desc' },
-          take: 1
+          orderBy: { orderIndex: 'asc' }
         }
       }
     });
@@ -288,14 +287,95 @@ export const workshopService = {
       throw new Error('你未加入该房间');
     }
 
-    const currentOrder = room.currentTurnOrder ?? 0;
-    const currentMemberId = room.members[currentOrder]?.memberId ?? room.members[0]?.memberId;
-    if (!currentMemberId || currentMemberId !== params.memberId) {
-      throw new Error('尚未轮到你提交');
+    // Calculate how many times each member has contributed
+    const contributionCounts = new Map<number, number>();
+    room.contributions.forEach((contribution) => {
+      const count = contributionCounts.get(contribution.memberId) ?? 0;
+      contributionCounts.set(contribution.memberId, count + 1);
+    });
+
+    // Find members who haven't written yet (contribution count = 0)
+    const membersWithoutContributions = room.members.filter(
+      (member) => (contributionCounts.get(member.memberId) ?? 0) === 0
+    );
+
+    // Determine whose turn it is
+    let expectedMemberId: number | null = null;
+    if (membersWithoutContributions.length > 0) {
+      // Priority: members who haven't written yet, in order of joining (orderIndex)
+      const nextMember = membersWithoutContributions[0];
+      expectedMemberId = nextMember.memberId;
+    } else {
+      // All members have written at least once, find the minimum contribution count
+      const minCount = Math.min(...Array.from(contributionCounts.values()));
+      const membersWithMinCount = room.members.filter(
+        (member) => (contributionCounts.get(member.memberId) ?? 0) === minCount
+      );
+
+      // Among members with minimum count, find the one who should go next
+      // Use currentTurnOrder as a hint, but ensure fairness
+      const currentOrder = room.currentTurnOrder ?? 0;
+      const currentMember = room.members[currentOrder];
+      
+      if (currentMember && membersWithMinCount.some((m) => m.memberId === currentMember.memberId)) {
+        expectedMemberId = currentMember.memberId;
+      } else {
+        // Find the first member with min count, starting from currentOrder
+        let found = false;
+        for (let i = 0; i < room.members.length; i++) {
+          const idx = (currentOrder + i) % room.members.length;
+          const member = room.members[idx];
+          if (membersWithMinCount.some((m) => m.memberId === member.memberId)) {
+            expectedMemberId = member.memberId;
+            found = true;
+            break;
+          }
+        }
+        if (!found && membersWithMinCount.length > 0) {
+          expectedMemberId = membersWithMinCount[0].memberId;
+        }
+      }
     }
 
-    const nextOrder = room.members.length > 0 ? (memberOrder + 1) % room.members.length : 0;
-    const orderIndex = (room.contributions[0]?.orderIndex ?? -1) + 1;
+    if (!expectedMemberId || expectedMemberId !== params.memberId) {
+      const expectedMember = room.members.find((m) => m.memberId === expectedMemberId);
+      throw new Error(`尚未轮到你提交，当前应该轮到：${expectedMember?.nickname ?? '其他成员'}`);
+    }
+
+    // Calculate next turn order
+    // After this contribution, check if we need to move to next round
+    const myContributionCount = (contributionCounts.get(params.memberId) ?? 0) + 1;
+    const minCountAfter = Math.min(
+      ...room.members.map((m) => {
+        if (m.memberId === params.memberId) return myContributionCount;
+        return contributionCounts.get(m.memberId) ?? 0;
+      })
+    );
+
+    // Find next member: prioritize those with fewer contributions
+    const membersWithMinCountAfter = room.members.filter((m) => {
+      const count = m.memberId === params.memberId ? myContributionCount : (contributionCounts.get(m.memberId) ?? 0);
+      return count === minCountAfter;
+    });
+
+    // Find next member in order, starting from current member
+    let nextOrder = memberOrder;
+    let nextFound = false;
+    for (let i = 1; i <= room.members.length; i++) {
+      const idx = (memberOrder + i) % room.members.length;
+      const member = room.members[idx];
+      if (membersWithMinCountAfter.some((m) => m.memberId === member.memberId)) {
+        nextOrder = idx;
+        nextFound = true;
+        break;
+      }
+    }
+
+    if (!nextFound && membersWithMinCountAfter.length > 0) {
+      nextOrder = room.members.findIndex((m) => m.memberId === membersWithMinCountAfter[0].memberId);
+    }
+
+    const orderIndex = (room.contributions[room.contributions.length - 1]?.orderIndex ?? -1) + 1;
 
     const contribution = await prisma.$transaction(async (tx) => {
       const created = await tx.workshopContribution.create({
