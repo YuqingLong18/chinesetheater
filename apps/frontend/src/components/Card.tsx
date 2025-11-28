@@ -7,7 +7,7 @@ interface CardProps {
 }
 
 const Card = ({ children, className }: CardProps) => (
-  <div className={clsx('card', className)}>{children}</div>
+  <div className={clsx('bg-white rounded-lg border border-gray-200 p-6', className)}>{children}</div>
 );
 
 export default Card;

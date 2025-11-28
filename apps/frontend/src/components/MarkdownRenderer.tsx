@@ -168,7 +168,7 @@ const renderInline = (nodes: InlineNode[], keyPrefix: string) =>
     }
     if (node.type === 'code') {
       return (
-        <code key={key} className="rounded bg-gray-100 px-1 py-0.5 text-xs text-purple-700">
+        <code key={key} className="rounded bg-gray-100 px-1 py-0.5 text-xs text-lavender-600">
           {children}
         </code>
       );
@@ -235,7 +235,7 @@ const MarkdownRenderer = ({ content, className }: { content: string; className?:
             );
           case 'blockquote':
             return (
-              <blockquote key={key} className="border-l-4 border-purple-200 bg-purple-50/60 px-4 py-2 text-gray-700">
+              <blockquote key={key} className="border-l-4 border-lavender-200 bg-lavender-50 px-4 py-2 text-gray-700">
                 {renderInline(block.content, key)}
               </blockquote>
             );

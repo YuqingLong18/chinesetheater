@@ -6,20 +6,14 @@ interface FeatureButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'tertiary' | 'quaternary';
 }
 
-const variantMap: Record<Required<FeatureButtonProps>['variant'], string> = {
-  primary: 'from-blue-500 to-purple-600',
-  secondary: 'from-green-400 to-blue-500',
-  tertiary: 'from-pink-500 to-orange-400',
-  quaternary: 'from-indigo-500 to-sky-500'
-};
-
 const FeatureButton = ({ children, active, className, variant = 'primary', ...props }: FeatureButtonProps) => (
   <button
     type="button"
     className={clsx(
-      'w-full rounded-xl px-6 py-4 text-lg font-semibold text-white shadow-lg transition-transform duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
-      `bg-gradient-to-r ${variantMap[variant]}`,
-      active ? 'scale-100' : 'scale-95 opacity-90 hover:scale-100',
+      'w-full rounded-lg px-5 py-3.5 text-base font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-lavender-300 focus:ring-offset-2',
+      active 
+        ? 'bg-lavender-500 text-white shadow-sm' 
+        : 'bg-white text-gray-700 border border-gray-200 hover:border-lavender-300 hover:bg-lavender-50',
       className
     )}
     {...props}

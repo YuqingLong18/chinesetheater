@@ -291,8 +291,8 @@ const StudentWorkspacePage = () => {
     }
 
     return (
-      <div className="space-y-3 rounded-xl border border-purple-200 bg-purple-50/60 p-4">
-        <div className="text-sm font-semibold text-purple-700">课堂任务提交</div>
+      <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div className="text-sm font-medium text-gray-700">课堂任务提交</div>
         {featureTasks.map((task) => {
           const value = taskResponses[task.taskId] ?? '';
           const isSubmitting = taskSubmitting === task.taskId;
@@ -306,7 +306,7 @@ const StudentWorkspacePage = () => {
               : '可选任务';
 
           return (
-            <div key={task.taskId} className="space-y-2 rounded-lg bg-white/80 p-3 shadow-sm">
+            <div key={task.taskId} className="space-y-2 rounded-lg border border-gray-200 bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
                 <span className="font-medium text-gray-700">{task.title}</span>
                 <span>{statusLabel}</span>
@@ -865,22 +865,24 @@ const StudentWorkspacePage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-        <div>
-          <p className="text-sm text-gray-500">{sessionInfo?.sessionName ?? '未命名课堂'}</p>
-          <h1 className="text-xl font-semibold text-gray-900">学生学习界面</h1>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-500">用户：{studentProfile?.username}</p>
-          <GradientButton variant="secondary" className="mt-2" onClick={handleLogout}>
-            退出课堂
-          </GradientButton>
+    <div className="min-h-screen bg-gray-50">
+      <header className="border-b border-gray-200 bg-white px-6 py-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
+          <div>
+            <p className="text-xs text-gray-500">{sessionInfo?.sessionName ?? '未命名课堂'}</p>
+            <h1 className="text-lg font-semibold text-gray-900">学生学习界面</h1>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-500">用户：{studentProfile?.username}</p>
+            <GradientButton variant="secondary" className="mt-2" onClick={handleLogout}>
+              退出课堂
+            </GradientButton>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <section className="grid gap-6 md:grid-cols-3">
+      <main className="mx-auto max-w-5xl px-4 py-6">
+        <section className="grid gap-3 md:grid-cols-3">
           {featureButtons.map((button) => (
             <FeatureButton
               key={button.key}
@@ -893,27 +895,27 @@ const StudentWorkspacePage = () => {
           ))}
         </section>
 
-        {message ? <p className="mt-4 text-center text-sm text-blue-600">{message}</p> : null}
+        {message ? <p className="mt-4 text-center text-sm text-lavender-600">{message}</p> : null}
 
         {(tasksLoading || tasks.length > 0) ? (
-          <Card className="mt-6 space-y-3">
+          <Card className="mt-5 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">课堂任务清单</h2>
+                <h2 className="text-base font-semibold text-gray-900">课堂任务清单</h2>
                 <p className="text-xs text-gray-500">完成指定功能后记得提交成果</p>
               </div>
               <div className="flex items-center gap-3 text-xs">
                 <button
                   type="button"
                   onClick={() => setTasksExpanded((prev) => !prev)}
-                  className="rounded border border-gray-300 px-2 py-1 text-gray-600 transition hover:border-gray-400"
+                  className="rounded border border-gray-200 px-2 py-1 text-gray-600 transition hover:border-gray-300 hover:bg-gray-50"
                 >
                   {tasksExpanded ? '收起' : '展开'}
                 </button>
                 <button
                   type="button"
                   onClick={() => fetchStudentTasks()}
-                  className="text-blue-500 transition hover:text-blue-700"
+                  className="text-lavender-600 transition hover:text-lavender-700"
                 >
                   刷新
                 </button>
@@ -939,9 +941,9 @@ const StudentWorkspacePage = () => {
                     : task.isRequired
                       ? '待完成'
                       : '可选任务';
-                  const statusClass = completed ? 'text-emerald-600' : task.isRequired ? 'text-orange-500' : 'text-gray-400';
+                  const statusClass = completed ? 'text-lavender-600' : task.isRequired ? 'text-gray-700' : 'text-gray-400';
                   return (
-                    <li key={task.taskId} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
+                    <li key={task.taskId} className="rounded-lg border border-gray-200 bg-white p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-gray-800">{task.title}</p>
@@ -986,12 +988,12 @@ const StudentWorkspacePage = () => {
             <Card className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">与作者对话</h2>
-                  <p className="text-sm text-gray-500">
+                  <h2 className="text-lg font-semibold text-gray-900">与作者对话</h2>
+                  <p className="text-xs text-gray-500">
                     当前作者：{sessionInfo?.authorName}，《{sessionInfo?.literatureTitle}》
                   </p>
                 </div>
-                {typing ? <span className="text-sm text-purple-500">作者正在思考...</span> : null}
+                {typing ? <span className="text-sm text-lavender-600">作者正在思考...</span> : null}
               </div>
               <div className="max-h-[420px] overflow-y-auto rounded-lg bg-gray-50 p-4">
                 {chatMessages.length === 0 ? (
@@ -1021,8 +1023,8 @@ const StudentWorkspacePage = () => {
           {activeFeature === 'writing' ? (
             <Card className="space-y-4">
               <header>
-                <h2 className="text-xl font-semibold text-gray-900">描述性写作 - 用文字描绘你的想象</h2>
-                <p className="text-sm text-gray-500">详细描述场景，生成符合想象的图像。</p>
+                <h2 className="text-lg font-semibold text-gray-900">描述性写作 - 用文字描绘你的想象</h2>
+                <p className="text-xs text-gray-500">详细描述场景，生成符合想象的图像。</p>
               </header>
               <div className="space-y-4">
                 <TextInput
@@ -1044,7 +1046,7 @@ const StudentWorkspacePage = () => {
               </div>
 
               {generatedImage ? (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <img src={generatedImage.imageUrl} alt={generatedImage.sceneDescription} className="mx-auto max-h-80 rounded-lg object-contain" />
                   <div className="mt-4 space-y-2 text-sm">
                     <p>风格：{generatedImage.style}</p>
@@ -1080,12 +1082,12 @@ const StudentWorkspacePage = () => {
               ) : null}
 
               {editComparison ? (
-                <div className="rounded-xl border border-purple-200 bg-white p-4 shadow-sm">
+                <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <h3 className="text-base font-semibold text-gray-900">版本对比</h3>
                   <p className="mt-1 text-xs text-gray-500">对比编辑前后的效果，确认是否保留新的版本。</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                      <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">编辑前</span>
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">编辑前</span>
                       <img
                         src={editComparison.previous.imageUrl}
                         alt={editComparison.previous.sceneDescription}
@@ -1094,8 +1096,8 @@ const StudentWorkspacePage = () => {
                       <p className="text-xs text-gray-500">编辑次数：{editComparison.previous.editCount}</p>
                       <p className="text-xs text-gray-500">描述：{editComparison.previous.sceneDescription}</p>
                     </div>
-                    <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
-                      <span className="inline-flex items-center rounded-full bg-purple-200 px-2 py-0.5 text-xs text-purple-700">编辑后</span>
+                    <div className="space-y-2 rounded-lg border border-lavender-200 bg-lavender-50 p-3">
+                      <span className="inline-flex items-center rounded-full bg-lavender-100 px-2 py-0.5 text-xs text-lavender-700">编辑后</span>
                       <img
                         src={editComparison.updated.imageUrl}
                         alt={editComparison.updated.sceneDescription}
@@ -1119,11 +1121,11 @@ const StudentWorkspacePage = () => {
           ) : null}
 
           {activeFeature === 'journey' ? (
-            <Card className="space-y-5">
+            <Card className="space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">人生行迹 - {journeyData?.heroName ?? sessionInfo?.authorName ?? '主角'}</h2>
-                  <p className="text-sm text-gray-500">结合课堂人物自动生成的行迹地图，点击地点查看详细信息。</p>
+                  <h2 className="text-lg font-semibold text-gray-900">人生行迹 - {journeyData?.heroName ?? sessionInfo?.authorName ?? '主角'}</h2>
+                  <p className="text-xs text-gray-500">结合课堂人物自动生成的行迹地图，点击地点查看详细信息。</p>
                 </div>
                 <GradientButton variant="primary" onClick={() => fetchJourney()} disabled={journeyLoading}>
                   {journeyLoading ? '加载中...' : journeyData ? '刷新行迹' : '加载行迹'}
@@ -1132,16 +1134,16 @@ const StudentWorkspacePage = () => {
 
               {journeyLoading ? (
                 <div className="flex h-64 flex-col items-center justify-center gap-2 text-sm text-gray-500">
-                  <span className="inline-flex h-10 w-10 animate-spin rounded-full border-2 border-blue-200 border-t-blue-500" />
+                  <span className="inline-flex h-10 w-10 animate-spin rounded-full border-2 border-lavender-200 border-t-lavender-600" />
                   正在构建人生行迹，请稍候…
                 </div>
               ) : journeyData ? (
                 <>
                   <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-                    <div className="h-[520px] overflow-hidden rounded-2xl border border-gray-200">
+                    <div className="h-[520px] overflow-hidden rounded-lg border border-gray-200">
                       <LifeJourneyMap locations={journeyData.locations} onSelect={setJourneyLocation} />
                     </div>
-                    <aside className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <aside className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
                       {(() => {
                         const current = journeyLocation ?? journeyData.locations[0];
                         if (!current) {
@@ -1151,7 +1153,7 @@ const StudentWorkspacePage = () => {
                           <div className="space-y-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <h3 className="text-lg font-semibold text-blue-600">{current.name}</h3>
+                                <h3 className="text-base font-semibold text-lavender-600">{current.name}</h3>
                                 {current.modernName ? (
                                   <p className="text-xs text-gray-500">今 {current.modernName}</p>
                                 ) : null}
@@ -1164,16 +1166,16 @@ const StudentWorkspacePage = () => {
                                 重置
                               </button>
                             </div>
-                            <div className="rounded-xl bg-white p-3 shadow-sm">
-                              <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <div className="flex items-center gap-2 text-sm font-medium text-lavender-600">
                                 <CalendarDaysIcon className="h-4 w-4" />
                                 <span>{current.period}</span>
                               </div>
                               <p className="mt-2 text-sm text-gray-600">{current.description}</p>
                             </div>
                             <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                                <MapPinIcon className="h-4 w-4 text-blue-500" />
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <MapPinIcon className="h-4 w-4 text-lavender-500" />
                                 生平事迹
                               </div>
                               <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
@@ -1183,11 +1185,11 @@ const StudentWorkspacePage = () => {
                               </ul>
                             </div>
                             <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                                <SparklesIcon className="h-4 w-4 text-blue-500" />
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <SparklesIcon className="h-4 w-4 text-lavender-500" />
                                 地理风物
                               </div>
-                              <div className="rounded-lg border border-dashed border-blue-200 bg-white p-3 text-xs text-gray-600">
+                              <div className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600">
                                 <p><strong>地形：</strong>{current.geography.terrain}</p>
                                 <p className="mt-1"><strong>植被：</strong>{current.geography.vegetation}</p>
                                 <p className="mt-1"><strong>水域：</strong>{current.geography.water}</p>
@@ -1195,13 +1197,13 @@ const StudentWorkspacePage = () => {
                               </div>
                             </div>
                             <div className="space-y-3">
-                              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                                <BookOpenIcon className="h-4 w-4 text-blue-500" />
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <BookOpenIcon className="h-4 w-4 text-lavender-500" />
                                 代表诗作
                               </div>
                               {current.poems.map((poem, index) => (
-                                <div key={index} className="rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 p-3 text-sm text-gray-700">
-                                  <p className="font-semibold text-blue-600">《{poem.title}》</p>
+                                <div key={index} className="rounded-lg bg-lavender-50 p-3 text-sm text-gray-700">
+                                  <p className="font-medium text-lavender-600">《{poem.title}》</p>
                                   <p className="mt-1 whitespace-pre-line leading-relaxed">{poem.content}</p>
                                 </div>
                               ))}
@@ -1212,8 +1214,8 @@ const StudentWorkspacePage = () => {
                     </aside>
                   </div>
 
-                  <div className="rounded-2xl border border-gray-200 bg-white p-5">
-                    <h3 className="text-lg font-semibold text-gray-900">行迹概览</h3>
+                  <div className="rounded-lg border border-gray-200 bg-white p-5">
+                    <h3 className="text-base font-semibold text-gray-900">行迹概览</h3>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600">{journeyData.summary}</p>
                     {journeyData.highlights && journeyData.highlights.length > 0 ? (
                       <div className="mt-4 space-y-2">
@@ -1246,10 +1248,10 @@ const StudentWorkspacePage = () => {
           ) : null}
 
           {activeFeature === 'analysis' ? (
-            <Card className="space-y-5">
+            <Card className="space-y-4">
               <header>
-                <h2 className="text-xl font-semibold text-gray-900">对比分析 - 建立多维文学坐标</h2>
-                <p className="text-sm text-gray-500">结合课堂主题，生成时代、流派、跨文化或自定义的分析提纲。</p>
+                <h2 className="text-lg font-semibold text-gray-900">对比分析 - 建立多维文学坐标</h2>
+                <p className="text-xs text-gray-500">结合课堂主题，生成时代、流派、跨文化或自定义的分析提纲。</p>
                 <div className="mt-3">
                   <GradientButton
                     variant="secondary"
@@ -1305,7 +1307,7 @@ const StudentWorkspacePage = () => {
                         customInstruction: nextType === 'custom' ? prev.customInstruction : ''
                       }));
                     }}
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-lavender-400 focus:outline-none focus:ring-1 focus:ring-lavender-400"
                   >
                     {Object.entries(spacetimeTypeLabels).map(([key, label]) => (
                       <option key={key} value={key}>
@@ -1344,7 +1346,7 @@ const StudentWorkspacePage = () => {
               </GradientButton>
               {renderTaskInputs('analysis')}
               <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-gray-900">历史记录</h3>
+                <h3 className="text-base font-semibold text-gray-900">历史记录</h3>
                 {analysisRecords.length === 0 ? (
                   <p className="text-sm text-gray-500">还没有生成记录，试着先创建一份对比分析。</p>
                 ) : (
@@ -1352,10 +1354,10 @@ const StudentWorkspacePage = () => {
                     {analysisRecords.map((analysis) => (
                       <li
                         key={analysis.analysisId}
-                        className="space-y-3 rounded-xl border border-gray-200 bg-white/90 p-4 shadow-sm"
+                        className="space-y-3 rounded-lg border border-gray-200 bg-white p-4"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-                          <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-purple-600">
+                          <span className="inline-flex items-center rounded-full bg-lavender-100 px-2 py-0.5 text-lavender-600">
                             {spacetimeTypeLabels[analysis.analysisType]}
                           </span>
                           <span>{new Date(analysis.createdAt).toLocaleString('zh-CN')}</span>
@@ -1382,7 +1384,7 @@ const StudentWorkspacePage = () => {
                             </p>
                           ) : null}
                           {analysis.customInstruction ? (
-                            <p className="text-xs text-indigo-600">自定义指令：{analysis.customInstruction}</p>
+                            <p className="text-xs text-lavender-600">自定义指令：{analysis.customInstruction}</p>
                           ) : null}
                           {analysis.promptNotes ? (
                             <p className="text-xs text-gray-500">学生补充：{analysis.promptNotes}</p>
@@ -1393,14 +1395,14 @@ const StudentWorkspacePage = () => {
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
                           {analysis.customInstruction ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-600">
                               自定义指令
                             </span>
                           ) : null}
                           <button
                             type="button"
                             onClick={() => handleDownloadAnalysis(analysis)}
-                            className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600"
+                            className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-600 transition hover:border-lavender-300 hover:text-lavender-600 hover:bg-lavender-50"
                           >
                             下载
                           </button>
@@ -1416,16 +1418,16 @@ const StudentWorkspacePage = () => {
           {activeFeature === 'gallery' ? (
             <Card className="space-y-4">
               <header>
-                <h2 className="text-xl font-semibold text-gray-900">课堂画廊 - 本节课学生作品展示</h2>
-                <p className="text-sm text-gray-500">欣赏同学们的创作灵感，点击查看详情。</p>
+                <h2 className="text-lg font-semibold text-gray-900">课堂画廊 - 本节课学生作品展示</h2>
+                <p className="text-xs text-gray-500">欣赏同学们的创作灵感，点击查看详情。</p>
               </header>
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                 {gallery.map((item) => (
                   <button
                     type="button"
                     key={item.imageId}
                     onClick={() => handleGalleryItemClick(item)}
-                    className="overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    className="overflow-hidden rounded-lg border border-gray-200 bg-white text-left transition hover:border-lavender-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-lavender-300"
                   >
                     <img src={item.imageUrl} alt={item.sceneDescription} className="h-32 w-full object-cover" />
                     <div className="space-y-2 px-4 py-3 text-sm">
@@ -1459,12 +1461,12 @@ const StudentWorkspacePage = () => {
         </section>
       </main>
       {editModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={closeEditModal}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={closeEditModal}>
           <div
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-lg"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-gray-900">继续编辑图像</h3>
+            <h3 className="text-base font-semibold text-gray-900">继续编辑图像</h3>
             <p className="mt-2 text-sm text-gray-600">描述你想要修改的细节，我们会在当前图像基础上进行更新。</p>
             <div className="mt-4">
               <TextArea
@@ -1488,9 +1490,9 @@ const StudentWorkspacePage = () => {
       ) : null}
 
       {selectedGalleryItem ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4" onClick={closeGalleryPreview}>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4" onClick={closeGalleryPreview}>
           <div
-            className="w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl"
+            className="w-full max-w-4xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="grid gap-6 p-6 md:grid-cols-2">
@@ -1514,11 +1516,11 @@ const StudentWorkspacePage = () => {
                     onClick={() => handleToggleGalleryLike(selectedGalleryItem.imageId)}
                     disabled={galleryLikeProcessing === selectedGalleryItem.imageId}
                     className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm transition ${
-                      selectedGalleryItem.likedByMe ? 'bg-pink-100 text-pink-600' : 'border border-pink-200 text-pink-500 hover:bg-pink-50'
+                      selectedGalleryItem.likedByMe ? 'bg-lavender-100 text-lavender-600' : 'border border-lavender-200 text-lavender-600 hover:bg-lavender-50'
                     } ${galleryLikeProcessing === selectedGalleryItem.imageId ? 'opacity-70' : ''}`}
                   >
                     {selectedGalleryItem.likedByMe ? '❤️ 已点赞' : '👍 点赞'}
-                    <span className="text-xs text-pink-400">{selectedGalleryItem.likeCount}</span>
+                    <span className="text-xs text-lavender-500">{selectedGalleryItem.likeCount}</span>
                   </button>
                   <span>共 {selectedGalleryItem.commentCount} 条评论</span>
                 </div>

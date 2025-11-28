@@ -10,10 +10,10 @@ const ChatBubble = ({ sender, content }: ChatBubbleProps) => {
   return (
     <div className={`flex ${isStudent ? 'justify-end' : 'justify-start'} py-1`}>
       <div
-        className={`max-w-[75%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+        className={`max-w-[75%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed ${
           isStudent
-            ? 'bg-blue-100 text-gray-800'
-            : 'border border-transparent bg-white text-gray-800 shadow-md ring-1 ring-inset ring-purple-200'
+            ? 'bg-lavender-100 text-gray-800'
+            : 'border border-gray-200 bg-white text-gray-800'
         }`}
       >
         <MarkdownRenderer content={content} className="markdown-bubble" />

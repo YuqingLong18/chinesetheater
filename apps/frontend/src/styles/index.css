@@ -3,25 +3,25 @@
 @tailwind utilities;
 
 body {
-  @apply font-sans bg-gray-50 text-gray-800;
+  @apply font-sans bg-gray-50 text-gray-900 antialiased;
 }
 
 .gradient-button {
-  @apply text-white font-semibold rounded-lg py-3 px-6 shadow-lg transition-transform duration-200;
+  @apply font-medium rounded-lg py-2.5 px-5 transition-all duration-200;
 }
 
 .gradient-button-primary {
-  @apply bg-gradient-to-r from-blue-500 to-purple-600;
+  @apply bg-lavender-500 text-white hover:bg-lavender-600 active:bg-lavender-700;
 }
 
 .gradient-button-secondary {
-  @apply bg-gradient-to-r from-green-400 to-blue-500;
+  @apply bg-white text-lavender-600 border border-lavender-200 hover:bg-lavender-50 hover:border-lavender-300 active:bg-lavender-100;
 }
 
 .gradient-button-tertiary {
-  @apply bg-gradient-to-r from-pink-500 to-orange-400;
+  @apply bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300;
 }
 
 .card {
-  @apply bg-white rounded-xl shadow-lg p-6;
+  @apply bg-white rounded-lg border border-gray-200 p-6;
 }

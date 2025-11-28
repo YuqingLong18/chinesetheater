@@ -781,21 +781,23 @@ const TeacherDashboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">教师控制面板</h1>
-          <p className="text-sm text-gray-500">管理课堂会话、学生账号与课堂活动</p>
+    <div className="min-h-screen bg-gray-50">
+      <header className="border-b border-gray-200 bg-white px-6 py-5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">教师控制面板</h1>
+            <p className="mt-1 text-xs text-gray-500">管理课堂会话、学生账号与课堂活动</p>
+          </div>
+          <GradientButton variant="secondary" onClick={handleLogout}>
+            退出登录
+          </GradientButton>
         </div>
-        <GradientButton variant="secondary" onClick={handleLogout}>
-          退出登录
-        </GradientButton>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-3">
-        <section className="space-y-6 lg:col-span-2">
+      <main className="mx-auto grid max-w-6xl gap-5 px-6 py-6 lg:grid-cols-3">
+        <section className="space-y-5 lg:col-span-2">
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">创建新课堂会话</h2>
+            <h2 className="text-lg font-semibold text-gray-900">创建新课堂会话</h2>
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleCreateSession}>
               <TextInput
                 label="会话名称"
@@ -821,10 +823,10 @@ const TeacherDashboardPage = () => {
                 value={formData.literatureTitle}
                 onChange={(e) => setFormData((prev) => ({ ...prev, literatureTitle: e.target.value }))}
               />
-              <div className="md:col-span-2 space-y-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-4">
+              <div className="md:col-span-2 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-semibold text-gray-800">任务清单（可选）</h3>
+                    <h3 className="text-sm font-medium text-gray-700">任务清单（可选）</h3>
                     <p className="text-xs text-gray-500">为学生设定课堂内需要完成的作业或练习。</p>
                   </div>
                   <GradientButton variant="secondary" type="button" onClick={handleAddTaskDraft}>
@@ -832,11 +834,11 @@ const TeacherDashboardPage = () => {
                   </GradientButton>
                 </div>
                 {taskDrafts.length === 0 ? (
-                  <p className="rounded-lg bg-white/70 p-3 text-sm text-gray-500">暂未添加任务。</p>
+                  <p className="rounded-lg bg-white p-3 text-sm text-gray-500">暂未添加任务。</p>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {taskDrafts.map((task, index) => (
-                      <div key={index} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
+                      <div key={index} className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
                         <div className="flex flex-col gap-3 md:flex-row md:items-start">
                           <div className="flex-1 space-y-3">
                             <TextInput
@@ -873,14 +875,14 @@ const TeacherDashboardPage = () => {
                                 type="checkbox"
                                 checked={task.isRequired}
                                 onChange={(e) => handleTaskDraftChange(index, 'isRequired', e.target.checked)}
-                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                className="h-4 w-4 rounded border-gray-300 text-lavender-600 focus:ring-lavender-500"
                               />
                               必做任务
                             </label>
                             <button
                               type="button"
                               onClick={() => handleRemoveTaskDraft(index)}
-                              className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm text-red-500 transition hover:bg-red-50"
+                              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 transition hover:bg-gray-50 hover:border-gray-300"
                             >
                               删除任务
                             </button>
@@ -895,12 +897,12 @@ const TeacherDashboardPage = () => {
                 {loading ? '提交中...' : '创建会话'}
               </GradientButton>
             </form>
-            {message ? <p className="text-sm text-blue-600">{message}</p> : null}
+            {message ? <p className="text-sm text-lavender-600">{message}</p> : null}
           </Card>
 
           <Card className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold text-gray-900">课堂列表</h2>
+              <h2 className="text-lg font-semibold text-gray-900">课堂列表</h2>
               <div className="flex items-center gap-3">
                 <GradientButton variant="secondary" onClick={refreshCurrentSession}>
                   刷新数据
@@ -909,7 +911,7 @@ const TeacherDashboardPage = () => {
                   课堂详情
                 </GradientButton>
                 <select
-                  className="rounded-lg border border-gray-200 px-3 py-2"
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-lavender-400 focus:outline-none focus:ring-1 focus:ring-lavender-400"
                   value={selectedSession ?? ''}
                   onChange={(e) => setSelectedSession(Number(e.target.value) || null)}
                 >
@@ -926,16 +928,16 @@ const TeacherDashboardPage = () => {
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500">
-                    <th className="px-4 py-2">序号</th>
-                    <th className="px-4 py-2">用户名</th>
-                    <th className="px-4 py-2">初始密码</th>
-                    <th className="px-4 py-2">状态</th>
-                    <th className="px-4 py-2">首次登录</th>
-                    <th className="px-4 py-2">最近活动</th>
+                  <tr className="text-left text-xs font-medium text-gray-500">
+                    <th className="px-4 py-2.5">序号</th>
+                    <th className="px-4 py-2.5">用户名</th>
+                    <th className="px-4 py-2.5">初始密码</th>
+                    <th className="px-4 py-2.5">状态</th>
+                    <th className="px-4 py-2.5">首次登录</th>
+                    <th className="px-4 py-2.5">最近活动</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100 bg-white">
                   {students.map((student, index) => (
                     <tr key={student.studentId}>
                       <td className="px-4 py-2">{index + 1}</td>
@@ -951,16 +953,16 @@ const TeacherDashboardPage = () => {
             </div>
           </Card>
 
-          <Card className="space-y-5">
+          <Card className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-gray-900">
                   人生行迹{journeyData ? ` - ${journeyData.heroName}` : ''}
                 </h2>
-                <p className="text-sm text-gray-500">生成或预览作者的 AI 行迹地图，学生端将同步更新。</p>
+                <p className="text-xs text-gray-500">生成或预览作者的 AI 行迹地图，学生端将同步更新。</p>
                 {journeyGenerating ? (
-                  <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-600">
-                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+                  <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-lavender-100 px-2 py-0.5 text-xs text-lavender-600">
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-lavender-500" />
                     AI 正在生成中...
                   </span>
                 ) : null}
@@ -999,28 +1001,28 @@ const TeacherDashboardPage = () => {
             ) : (
               <>
                 {journeyGenerating ? (
-                  <div className="rounded-lg border-2 border-blue-200 bg-blue-50 px-4 py-3 mb-4">
+                  <div className="rounded-lg border border-lavender-200 bg-lavender-50 px-4 py-3 mb-4">
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
-                      <p className="text-sm font-medium text-blue-700">
+                      <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-lavender-200 border-t-lavender-600" />
+                      <p className="text-sm font-medium text-lavender-700">
                         AI 正在生成人生行迹，请稍候...（这可能需要几分钟时间）
                       </p>
                     </div>
                   </div>
                 ) : null}
                 {journeyNotice && !journeyGenerating ? (
-                  <p className="rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-600">{journeyNotice}</p>
+                  <p className="rounded-lg bg-lavender-50 px-4 py-2 text-sm text-lavender-600">{journeyNotice}</p>
                 ) : null}
                 {journeyError && !journeyGenerating ? (
                   <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{journeyError}</p>
                 ) : null}
                 {journeyComposerVisible ? (
-                  <div className="space-y-4 rounded-xl border border-dashed border-purple-200 bg-purple-50/60 p-4">
+                  <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <div>
-                      <p className="text-sm font-medium text-purple-800">
+                      <p className="text-sm font-medium text-gray-700">
                         添加行迹条目（可选）
                       </p>
-                      <p className="mt-1 text-xs text-purple-600">
+                      <p className="mt-1 text-xs text-gray-600">
                         每个条目至少填写一个字段，AI将严格遵循您提供的信息并补充缺失部分。除了您提供的条目外，AI还会继续补全该作者的其他重要行迹。
                       </p>
                     </div>
@@ -1029,16 +1031,16 @@ const TeacherDashboardPage = () => {
                       {journeyEntries.map((entry, index) => (
                         <div
                           key={index}
-                          className="rounded-lg border border-purple-200 bg-white p-4 shadow-sm"
+                          className="rounded-lg border border-gray-200 bg-white p-4"
                         >
                           <div className="mb-3 flex items-center justify-between">
-                            <span className="text-sm font-semibold text-purple-700">
+                            <span className="text-sm font-medium text-gray-700">
                               条目 {index + 1}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleRemoveJourneyEntry(index)}
-                              className="text-xs text-red-500 transition hover:text-red-700"
+                              className="text-xs text-gray-500 transition hover:text-gray-700"
                               disabled={journeyLoading || journeyGenerating}
                             >
                               删除
@@ -1163,18 +1165,18 @@ const TeacherDashboardPage = () => {
                   </div>
                 ) : null}
                 {journeyGenerating && !journeyData && !journeyComposerVisible ? (
-                  <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/50">
-                    <span className="inline-flex h-12 w-12 animate-spin rounded-full border-3 border-blue-200 border-t-blue-600" />
-                    <p className="text-sm font-medium text-blue-700">AI 正在生成人生行迹...</p>
-                    <p className="text-xs text-blue-600">这可能需要几分钟时间，请耐心等待</p>
+                  <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
+                    <span className="inline-flex h-12 w-12 animate-spin rounded-full border-2 border-lavender-200 border-t-lavender-600" />
+                    <p className="text-sm font-medium text-gray-700">AI 正在生成人生行迹...</p>
+                    <p className="text-xs text-gray-600">这可能需要几分钟时间，请耐心等待</p>
                   </div>
                 ) : journeyData ? (
                   <>
                     <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-                      <div className="h-[420px] overflow-hidden rounded-2xl border border-gray-200">
+                      <div className="h-[420px] overflow-hidden rounded-lg border border-gray-200">
                         <LifeJourneyMap locations={journeyData.locations} onSelect={setJourneyLocation} />
                       </div>
-                      <aside className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                      <aside className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
                         {(() => {
                           const current = journeyLocation ?? journeyData.locations[0];
                           if (!current) {
@@ -1184,7 +1186,7 @@ const TeacherDashboardPage = () => {
                             <div className="space-y-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <h3 className="text-lg font-semibold text-blue-600">{current.name}</h3>
+                                  <h3 className="text-base font-semibold text-lavender-600">{current.name}</h3>
                                   {current.modernName ? (
                                     <p className="text-xs text-gray-500">今 {current.modernName}</p>
                                   ) : null}
@@ -1197,16 +1199,16 @@ const TeacherDashboardPage = () => {
                                   重置
                                 </button>
                               </div>
-                              <div className="rounded-xl bg-white p-3 shadow-sm">
-                                <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                                <div className="flex items-center gap-2 text-sm font-medium text-lavender-600">
                                   <CalendarDaysIcon className="h-4 w-4" />
                                   <span>{current.period}</span>
                                 </div>
                                 <p className="mt-2 text-sm text-gray-600">{current.description}</p>
                               </div>
                               <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                                  <MapPinIcon className="h-4 w-4 text-blue-500" />
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                  <MapPinIcon className="h-4 w-4 text-lavender-500" />
                                   关键事件
                                 </div>
                                 <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
@@ -1216,11 +1218,11 @@ const TeacherDashboardPage = () => {
                                 </ul>
                               </div>
                               <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                                  <SparklesIcon className="h-4 w-4 text-blue-500" />
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                  <SparklesIcon className="h-4 w-4 text-lavender-500" />
                                   地理风物
                                 </div>
-                                <div className="rounded-lg border border-dashed border-blue-200 bg-white p-3 text-xs text-gray-600">
+                                <div className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600">
                                   <p><strong>地形：</strong>{current.geography.terrain}</p>
                                   <p className="mt-1"><strong>植被：</strong>{current.geography.vegetation}</p>
                                   <p className="mt-1"><strong>水域：</strong>{current.geography.water}</p>
@@ -1228,16 +1230,16 @@ const TeacherDashboardPage = () => {
                                 </div>
                               </div>
                               <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                                  <BookOpenIcon className="h-4 w-4 text-blue-500" />
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                  <BookOpenIcon className="h-4 w-4 text-lavender-500" />
                                   代表诗作
                                 </div>
                                 {current.poems.map((poem, index) => (
                                   <div
                                     key={index}
-                                    className="rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 p-3 text-sm text-gray-700"
+                                    className="rounded-lg bg-lavender-50 p-3 text-sm text-gray-700"
                                   >
-                                    <p className="font-semibold text-blue-600">《{poem.title}》</p>
+                                    <p className="font-medium text-lavender-600">《{poem.title}》</p>
                                     <p className="mt-1 whitespace-pre-line leading-relaxed">{poem.content}</p>
                                   </div>
                                 ))}
@@ -1247,8 +1249,8 @@ const TeacherDashboardPage = () => {
                         })()}
                       </aside>
                     </div>
-                    <div className="rounded-2xl border border-gray-200 bg-white p-5">
-                      <h3 className="text-lg font-semibold text-gray-900">行迹概览</h3>
+                    <div className="rounded-lg border border-gray-200 bg-white p-5">
+                      <h3 className="text-base font-semibold text-gray-900">行迹概览</h3>
                       <p className="mt-2 text-sm leading-relaxed text-gray-600">{journeyData.summary}</p>
                       {journeyData.highlights && journeyData.highlights.length > 0 ? (
                         <div className="mt-4 space-y-2">
@@ -1275,9 +1277,9 @@ const TeacherDashboardPage = () => {
           </Card>
         </section>
 
-        <section className="space-y-6">
+        <section className="space-y-5">
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">学生账号生成器</h2>
+            <h2 className="text-lg font-semibold text-gray-900">学生账号生成器</h2>
             <div className="space-y-4">
               <label className="flex items-center justify-between text-sm text-gray-600">
                 <span>生成数量（1-50）</span>
@@ -1287,14 +1289,14 @@ const TeacherDashboardPage = () => {
                   max={50}
                   value={quantity}
                   onChange={(e) => setQuantity(Number(e.target.value))}
-                  className="w-24 rounded-lg border border-gray-200 px-3 py-2"
+                  className="w-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-lavender-400 focus:outline-none focus:ring-1 focus:ring-lavender-400"
                 />
               </label>
               <GradientButton onClick={handleGenerateStudents} disabled={loading}>
                 {loading ? '生成中...' : '生成账号'}
               </GradientButton>
               {credentials.length > 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <p className="text-sm text-gray-600">生成结果（请妥善保存）</p>
                   <div className="mt-2 space-y-2 text-sm font-mono">
                     {credentials.map((item, index) => (
@@ -1311,7 +1313,7 @@ const TeacherDashboardPage = () => {
 
           <Card className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">任务完成情况</h2>
+              <h2 className="text-lg font-semibold text-gray-900">任务完成情况</h2>
               <span className="text-xs text-gray-500">学生完成状态实时更新</span>
             </div>
             {!selectedSession ? (
@@ -1319,7 +1321,7 @@ const TeacherDashboardPage = () => {
             ) : taskSummary && taskSummary.tasks.length > 0 ? (
               <div className="space-y-3">
                 {taskSummary.tasks.map((task) => (
-                  <div key={task.taskId} className="rounded-lg border border-gray-200 bg-white/80 p-3 shadow-sm">
+                  <div key={task.taskId} className="rounded-lg border border-gray-200 bg-white p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-semibold text-gray-800">
@@ -1359,7 +1361,7 @@ const TeacherDashboardPage = () => {
 
           {students.length > 0 ? (
             <Card className="space-y-3">
-              <h3 className="text-lg font-semibold text-gray-900">课堂账号总览</h3>
+              <h3 className="text-base font-semibold text-gray-900">课堂账号总览</h3>
               <div className="space-y-2 text-sm font-mono text-gray-600">
                 {students.map((student, index) => (
                   <div key={`all-credential-${student.studentId}`} className="flex items-center justify-between">
@@ -1372,7 +1374,7 @@ const TeacherDashboardPage = () => {
           ) : null}
 
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">课堂活动监控</h2>
+            <h2 className="text-lg font-semibold text-gray-900">课堂活动监控</h2>
             {analytics ? (
               <div className="space-y-4 text-sm">
                 <div>
@@ -1417,16 +1419,16 @@ const TeacherDashboardPage = () => {
                 <div>
                   <h3 className="font-semibold text-gray-800">对比分析</h3>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
-                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
                       中外对比：{analytics.spacetimeSummary.counts.crossCulture}
                     </span>
-                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
                       同时代：{analytics.spacetimeSummary.counts.sameEra}
                     </span>
-                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
                       同流派：{analytics.spacetimeSummary.counts.sameGenre}
                     </span>
-                    <span className="rounded-full bg-indigo-50 px-2 py-0.5">
+                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
                       自定义：{analytics.spacetimeSummary.counts.custom}
                     </span>
                   </div>
@@ -1468,15 +1470,15 @@ const TeacherDashboardPage = () => {
         </section>
       </main>
       {activityModalOpen ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/60 px-4 py-10" onClick={handleCloseActivityModal}
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/50 px-4 py-10" onClick={handleCloseActivityModal}
         >
           <div
-            className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="w-full max-w-5xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 px-6 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-6 py-4">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900">课堂详情</h3>
+                <h3 className="text-lg font-semibold text-gray-900">课堂详情</h3>
                 <p className="text-sm text-gray-500">
                   {currentSession ? `${currentSession.sessionName} · PIN ${currentSession.sessionPin}` : '请选择课堂'}
                 </p>
@@ -1485,11 +1487,11 @@ const TeacherDashboardPage = () => {
                 关闭
               </GradientButton>
             </div>
-            <div className="flex flex-wrap items-center gap-4 border-b border-gray-100 bg-gray-50 px-6 py-3 text-sm text-gray-600">
+            <div className="flex flex-wrap items-center gap-4 border-b border-gray-200 bg-gray-50 px-6 py-3 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <span>筛选学生：</span>
                 <select
-                  className="rounded-md border border-gray-300 px-3 py-1.5"
+                  className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm focus:border-lavender-400 focus:outline-none focus:ring-1 focus:ring-lavender-400"
                   value={activityFilter === 'all' ? 'all' : activityFilter.toString()}
                   onChange={(e) => {
                     const value = e.target.value;
@@ -1505,7 +1507,7 @@ const TeacherDashboardPage = () => {
                 </select>
               </div>
               <span className="text-xs text-gray-400">数据每10秒自动刷新</span>
-              {activityLoading ? <span className="text-xs text-purple-500">加载中...</span> : null}
+              {activityLoading ? <span className="text-xs text-lavender-600">加载中...</span> : null}
             </div>
             {activityError ? (
               <div className="bg-red-50 px-6 py-3 text-sm text-red-600">{activityError}</div>
@@ -1514,7 +1516,7 @@ const TeacherDashboardPage = () => {
               <div className="grid gap-6 md:grid-cols-2">
                 <section className="space-y-4">
                   <div>
-                    <h4 className="text-lg font-semibold text-gray-900">对话记录</h4>
+                    <h4 className="text-base font-semibold text-gray-900">对话记录</h4>
                     <p className="text-xs text-gray-500">显示学生与作者的全部对话内容</p>
                   </div>
                   {filteredPrompts.length === 0 ? (
@@ -1524,7 +1526,7 @@ const TeacherDashboardPage = () => {
                       {filteredPrompts.map((item) => {
                         const expanded = expandedMessages.has(item.messageId);
                         return (
-                          <li key={item.messageId} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
+                          <li key={item.messageId} className="rounded-lg border border-gray-200 bg-white p-3">
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <span className="font-medium text-gray-700">{item.username}</span>
                               <span>{new Date(item.timestamp).toLocaleString('zh-CN')}</span>
@@ -1533,12 +1535,12 @@ const TeacherDashboardPage = () => {
                               <MarkdownRenderer content={item.content} />
                             </div>
                             <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-600">学生消息</span>
+                              <span className="inline-flex items-center rounded-full bg-lavender-100 px-2 py-0.5 text-xs text-lavender-600">学生消息</span>
                               {item.aiReply ? (
                                 <button
                                   type="button"
                                   onClick={() => toggleMessageExpansion(item.messageId)}
-                                  className="rounded-full border border-blue-200 px-2 py-0.5 text-xs text-blue-600 transition hover:bg-blue-100"
+                                  className="rounded-full border border-lavender-200 px-2 py-0.5 text-xs text-lavender-600 transition hover:bg-lavender-50"
                                 >
                                   {expanded ? '收起AI回复' : '显示AI回复'}
                                 </button>
@@ -1547,12 +1549,12 @@ const TeacherDashboardPage = () => {
                               )}
                             </div>
                             {expanded && item.aiReply ? (
-                              <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-gray-800">
+                              <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
                                 <div className="flex items-center justify-between text-xs text-gray-500">
-                                  <span className="font-medium text-purple-700">AI 回复</span>
+                                  <span className="font-medium text-lavender-600">AI 回复</span>
                                   <span>{new Date(item.aiReply.timestamp).toLocaleString('zh-CN')}</span>
                                 </div>
-                                <div className="mt-2 rounded-lg bg-white/70 p-2">
+                                <div className="mt-2 rounded-lg bg-white p-2">
                                   <MarkdownRenderer content={item.aiReply.content} />
                                 </div>
                               </div>
@@ -1566,7 +1568,7 @@ const TeacherDashboardPage = () => {
                 </section>
                 <section className="space-y-4">
                   <div>
-                    <h4 className="text-lg font-semibold text-gray-900">图像生成与编辑</h4>
+                    <h4 className="text-base font-semibold text-gray-900">图像生成与编辑</h4>
                     <p className="text-xs text-gray-500">记录学生的生成提示与编辑指令</p>
                   </div>
                   {filteredImages.length === 0 ? (
@@ -1574,7 +1576,7 @@ const TeacherDashboardPage = () => {
                   ) : (
                     <ul className="space-y-3">
                       {filteredImages.map((item) => (
-                        <li key={item.activityId} className="flex gap-3 rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
+                        <li key={item.activityId} className="flex gap-3 rounded-lg border border-gray-200 bg-white p-3">
                           <img
                             src={item.imageUrl}
                             alt={item.sceneDescription}
@@ -1588,8 +1590,8 @@ const TeacherDashboardPage = () => {
                             <span
                               className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
                                 item.actionType === 'generation'
-                                  ? 'bg-green-100 text-green-600'
-                                  : 'bg-orange-100 text-orange-600'
+                                  ? 'bg-lavender-100 text-lavender-600'
+                                  : 'bg-gray-100 text-gray-600'
                               }`}
                             >
                               {item.actionType === 'generation' ? '初次生成' : '编辑优化'}
@@ -1606,7 +1608,7 @@ const TeacherDashboardPage = () => {
                 </section>
                 <section className="space-y-4 md:col-span-2">
                   <div>
-                    <h4 className="text-lg font-semibold text-gray-900">对比分析提纲</h4>
+                    <h4 className="text-base font-semibold text-gray-900">对比分析提纲</h4>
                     <p className="text-xs text-gray-500">查看学生生成的时代、流派与对比提纲</p>
                   </div>
                   {filteredSpacetime.length === 0 ? (
@@ -1616,11 +1618,11 @@ const TeacherDashboardPage = () => {
                       {filteredSpacetime.map((item) => (
                         <li
                           key={item.analysisId}
-                          className="space-y-3 rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm"
+                          className="space-y-3 rounded-lg border border-gray-200 bg-white p-4"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-600">
+                              <span className="inline-flex items-center rounded-full bg-lavender-100 px-2 py-0.5 text-lavender-600">
                                 {spacetimeTypeLabels[item.analysisType]}
                               </span>
                               <span className="font-medium text-gray-700">{item.username}</span>
@@ -1652,7 +1654,7 @@ const TeacherDashboardPage = () => {
                               <p className="text-xs text-gray-500">学生补充：{item.promptNotes}</p>
                             ) : null}
                             {item.customInstruction ? (
-                              <p className="text-xs text-indigo-600">自定义指令：{item.customInstruction}</p>
+                              <p className="text-xs text-lavender-600">自定义指令：{item.customInstruction}</p>
                             ) : null}
                           </div>
                           <div className="rounded-xl bg-gray-50 p-3">
