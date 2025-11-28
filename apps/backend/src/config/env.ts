@@ -13,7 +13,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1, 'JWT_SECRET 未配置'),
   OPENROUTER_API_KEY: z.string().min(1, 'OPENROUTER_API_KEY 未配置'),
   OPENROUTER_CHAT_MODEL: z.string().default('anthropic/claude-3.5-sonnet'),
-  OPENROUTER_IMAGE_MODEL: z.string().default('openai/dall-e-3')
+  OPENROUTER_IMAGE_MODEL: z.string().default('openai/dall-e-3'),
+  CENTRAL_AUTH_URL: z.string().default('http://localhost:3000')
 });
 
 export type Env = z.infer<typeof envSchema>;

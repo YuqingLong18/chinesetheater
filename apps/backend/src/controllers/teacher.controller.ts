@@ -28,8 +28,9 @@ export const createTeacherSession = async (req: AuthRequest, res: Response) => {
       orderIndex: task.orderIndex ?? index
     }));
 
+    // Use central user ID from authenticated user
     const session = await createSession(
-      req.user.id,
+      req.user.id, // This is now the central user ID
       parseResult.data.sessionName,
       parseResult.data.sessionPin,
       parseResult.data.authorName,
@@ -78,7 +79,7 @@ export const generateStudentAccountsController = async (req: AuthRequest, res: R
 
   try {
     const session = await getSessionWithStudents(sessionId);
-    if (!session || session.teacherId !== req.user.id) {
+    if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
@@ -102,7 +103,7 @@ export const listSessionStudents = async (req: AuthRequest, res: Response) => {
 
   try {
     const session = await getSessionWithStudents(sessionId);
-    if (!session || session.teacherId !== req.user.id) {
+    if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
@@ -127,7 +128,7 @@ export const sessionActivityFeed = async (req: AuthRequest, res: Response) => {
 
   try {
     const session = await getSessionWithStudents(sessionId);
-    if (!session || session.teacherId !== req.user.id) {
+    if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
@@ -151,7 +152,7 @@ export const sessionAnalytics = async (req: AuthRequest, res: Response) => {
 
   try {
     const session = await getSessionWithStudents(sessionId);
-    if (!session || session.teacherId !== req.user.id) {
+    if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
@@ -175,7 +176,7 @@ export const sessionTasksSummary = async (req: AuthRequest, res: Response) => {
 
   try {
     const session = await getSessionWithStudents(sessionId);
-    if (!session || session.teacherId !== req.user.id) {
+    if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
@@ -199,7 +200,7 @@ export const getTeacherSessionLifeJourney = async (req: AuthRequest, res: Respon
 
   try {
     const session = await getSessionById(sessionId);
-    if (!session || session.teacherId !== req.user.id) {
+    if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
@@ -275,7 +276,7 @@ export const generateTeacherSessionLifeJourney = async (req: AuthRequest, res: R
 
   try {
     const session = await getSessionById(sessionId);
-    if (!session || session.teacherId !== req.user.id) {
+    if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 

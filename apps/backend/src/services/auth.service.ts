@@ -1,24 +1,25 @@
 import { prisma } from '../lib/prisma.js';
 import { comparePassword, hashPassword } from '../utils/password.js';
 import { signToken } from '../utils/jwt.js';
+import { verifyCentralCredentials } from '../lib/centralAuth.js';
 
+/**
+ * Authenticate teacher using centralized authentication
+ */
 export const authenticateTeacher = async (username: string, password: string) => {
-  const teacher = await prisma.teacher.findUnique({ where: { username } });
-  if (!teacher) {
+  // Verify credentials with centralized auth server
+  const centralUser = await verifyCentralCredentials(username, password);
+  if (!centralUser) {
     return null;
   }
 
-  const isValid = await comparePassword(password, teacher.passwordHash);
-  if (!isValid) {
-    return null;
-  }
-
-  const token = signToken({ sub: teacher.teacherId, role: 'teacher' });
+  // Generate JWT token with central user ID
+  const token = signToken({ sub: centralUser.id, role: 'teacher' });
   return {
     token,
     teacher: {
-      id: teacher.teacherId,
-      username: teacher.username
+      id: centralUser.id,
+      username: centralUser.username
     }
   };
 };

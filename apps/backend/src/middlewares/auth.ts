@@ -3,7 +3,7 @@ import { verifyToken } from '../utils/jwt.js';
 
 export interface AuthRequest extends Request {
   user?: {
-    id: number;
+    id: number; // Central user ID for teachers, local studentId for students
     role: 'teacher' | 'student';
     sessionId?: number;
   };

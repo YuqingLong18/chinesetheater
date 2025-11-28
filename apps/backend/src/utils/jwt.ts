@@ -2,7 +2,7 @@ import jwt, { type Secret } from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
 export interface JwtPayload {
-  sub: number;
+  sub: number; // Central user ID for teachers, local studentId for students
   role: 'teacher' | 'student';
   sessionId?: number;
 }

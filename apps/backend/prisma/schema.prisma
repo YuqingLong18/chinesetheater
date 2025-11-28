@@ -97,18 +97,23 @@ enum SessionTaskSubmissionStatus {
   resubmitted
 }
 
+// Teacher model is deprecated - using centralized authentication
+// Keeping for backward compatibility during migration
 model Teacher {
   teacherId    Int       @id @default(autoincrement())
   username     String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
-  sessions     Session[]
+  sessions     Session[] @relation("LegacyTeacherSessions")
 }
 
 model Session {
   sessionId       Int              @id @default(autoincrement())
-  teacher         Teacher          @relation(fields: [teacherId], references: [teacherId], onDelete: Cascade)
-  teacherId       Int
+  // Legacy teacher relation (deprecated - use centralUserId instead)
+  teacher         Teacher?         @relation("LegacyTeacherSessions", fields: [teacherId], references: [teacherId], onDelete: SetNull)
+  teacherId       Int?              // Deprecated - use centralUserId
+  // Central user ID from centralized authentication system
+  centralUserId   Int               // User ID from central auth server (port 3000)
   sessionName     String
   sessionPin      String           @unique
   authorName      String
@@ -125,6 +130,8 @@ model Session {
   imageComments   ImageComment[]
   tasks           SessionTask[]
   spacetimeAnalyses SpacetimeAnalysis[]
+
+  @@index([centralUserId])
 }
 
 

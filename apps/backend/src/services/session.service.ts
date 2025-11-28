@@ -3,7 +3,7 @@ import type { Session } from '@prisma/client';
 import { createSessionTasks, type CreateSessionTaskInput } from './task.service.js';
 
 export const createSession = async (
-  teacherId: number,
+  centralUserId: number,
   sessionName: string,
   sessionPin: string,
   authorName: string,
@@ -18,7 +18,7 @@ export const createSession = async (
   const session = await prisma.$transaction(async (tx) => {
     const created = await tx.session.create({
       data: {
-        teacherId,
+        centralUserId,
         sessionName,
         sessionPin,
         authorName,
@@ -50,9 +50,9 @@ export const getSessionWithStudents = (sessionId: number) =>
     }
   });
 
-export const getTeacherSessions = (teacherId: number) =>
+export const getTeacherSessions = (centralUserId: number) =>
   prisma.session.findMany({
-    where: { teacherId },
+    where: { centralUserId },
     orderBy: { createdAt: 'desc' }
   });
 
@@ -61,7 +61,7 @@ export const getSessionById = (sessionId: number) =>
     where: { sessionId },
     select: {
       sessionId: true,
-      teacherId: true,
+      centralUserId: true,
       sessionName: true,
       authorName: true,
       literatureTitle: true,

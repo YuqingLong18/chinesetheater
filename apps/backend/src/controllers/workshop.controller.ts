@@ -13,8 +13,9 @@ const buildNickname = async (req: AuthRequest) => {
     const student = await prisma.student.findUnique({ where: { studentId: req.user.id } });
     return student?.username ?? `学员${req.user.id}`;
   }
-  const teacher = await prisma.teacher.findUnique({ where: { teacherId: req.user.id } });
-  return teacher?.username ?? `教师${req.user.id}`;
+  // For teachers, req.user.id is now the central user ID
+  // We can't look it up locally, so use a generic name or fetch from central auth if needed
+  return `教师${req.user.id}`;
 };
 
 export const createWorkshopRoom = async (req: AuthRequest, res: Response) => {

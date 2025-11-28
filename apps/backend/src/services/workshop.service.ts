@@ -146,12 +146,13 @@ export const workshopService = {
     });
   },
 
-  async listRoomsForTeacher(teacherId: number) {
+  async listRoomsForTeacher(centralUserId: number) {
+    // teacherId field now stores central user ID for teachers
     return prisma.workshopRoom.findMany({
       where: {
         members: {
           some: {
-            teacherId,
+            teacherId: centralUserId,
             role: 'teacher'
           }
         }
