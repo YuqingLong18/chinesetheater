@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { callOpenRouter } from '../lib/openrouter.js';
 import { env } from '../config/env.js';
 import type { LifeJourneyEntryInput } from './journey.service.js';
@@ -66,7 +67,7 @@ export class LifeJourneyGenerator {
                 currentLocation: 0,
                 totalLocations,
                 model: env.OPENROUTER_CHAT_MODEL,
-                teacherEntries: validEntries.length > 0 ? validEntries : null
+                teacherEntries: validEntries.length > 0 ? validEntries : Prisma.JsonNull
             }
         });
 
