@@ -47,6 +47,11 @@ const TeacherLoginPage = () => {
           {loading ? '登录中...' : '登录'}
         </GradientButton>
       </form>
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <GradientButton variant="secondary" className="w-full" onClick={() => navigate('/student-login')}>
+          我是学生
+        </GradientButton>
+      </div>
     </AuthLayout>
   );
 };
