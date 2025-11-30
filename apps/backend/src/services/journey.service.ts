@@ -27,9 +27,14 @@ const journeyLocationSchema = z.object({
   longitude: z.number().min(-180).max(180),
   period: z.string().min(1),
   description: z.string().min(1),
-  events: z.array(z.string().min(1)).min(1),
-  geography: geographySchema,
-  poems: z.array(poemSchema).min(1)
+  events: z.array(z.string().min(1)).min(1).catch(['重要事件待补充']),
+  geography: geographySchema.catch({
+    terrain: '未知',
+    vegetation: '未知',
+    water: '未知',
+    climate: '未知'
+  }),
+  poems: z.array(poemSchema).min(1).catch([{ title: '待补充', content: '待补充' }])
 });
 
 const lifeJourneySchema = z.object({
@@ -191,12 +196,20 @@ const parseStoredJourney = (value: unknown) => {
   return parsed.success ? parsed.data : null;
 };
 
-const storeLifeJourney = async (sessionId: number, journey: LifeJourneyResponse) => {
+const storeLifeJourney = async (
+  sessionId: number,
+  journey: LifeJourneyResponse,
+  rawResponse?: string,
+  attemptNumber: number = 1
+) => {
   await prisma.session.update({
     where: { sessionId },
     data: {
       lifeJourney: journey,
-      lifeJourneyGeneratedAt: new Date()
+      lifeJourneyGeneratedAt: new Date(),
+      lifeJourneyRawResponse: rawResponse ?? null,
+      lifeJourneyModel: env.OPENROUTER_CHAT_MODEL,
+      lifeJourneyAttempts: attemptNumber
     }
   });
 };
@@ -246,36 +259,73 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
   };
 
   const extractJsonCandidate = (text: string): unknown | null => {
-    const trimmed = text.trim();
-    const direct = tryParseJson(trimmed);
-    if (direct) {
-      return direct;
-    }
+    const strategies = [
+      // Strategy 1: Direct parse
+      () => JSON.parse(text.trim()),
 
-    const fenced = trimmed.match(/```json\s*([\s\S]+?)```/i);
-    if (fenced) {
-      const attempt = tryParseJson(fenced[1]);
-      if (attempt) {
-        return attempt;
+      // Strategy 2: Markdown code block with optional json language tag
+      () => {
+        const match = text.match(/```(?:json)?\s*\n?([\s\S]+?)\n?```/);
+        return match ? JSON.parse(match[1]) : null;
+      },
+
+      // Strategy 3: Find first { to last }
+      () => {
+        const first = text.indexOf('{');
+        const last = text.lastIndexOf('}');
+        return (first !== -1 && last > first) ? JSON.parse(text.slice(first, last + 1)) : null;
+      },
+
+      // Strategy 4: Fix common JSON errors
+      () => {
+        const fixed = text
+          .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+          .replace(/\/\/.*/g, '') // Remove // comments
+          .replace(/\/\*[\s\S]*?\*\//g, ''); // Remove /* */ comments
+        return JSON.parse(fixed);
+      },
+
+      // Strategy 5: Try to extract from markdown block then fix errors
+      () => {
+        const match = text.match(/```(?:json)?\s*\n?([\s\S]+?)\n?```/);
+        if (!match) return null;
+        const fixed = match[1]
+          .replace(/,(\s*[}\]])/g, '$1')
+          .replace(/\/\/.*/g, '')
+          .replace(/\/\*[\s\S]*?\*\//g, '');
+        return JSON.parse(fixed);
       }
-    }
+    ];
 
-    const firstBrace = trimmed.indexOf('{');
-    const lastBrace = trimmed.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      const slice = trimmed.slice(firstBrace, lastBrace + 1);
-      const attempt = tryParseJson(slice);
-      if (attempt) {
-        return attempt;
+    for (let i = 0; i < strategies.length; i++) {
+      try {
+        const result = strategies[i]();
+        if (result) {
+          console.log(`JSON extraction succeeded with strategy ${i + 1}`);
+          return result;
+        }
+      } catch (error) {
+        // Continue to next strategy
       }
     }
 
     return null;
   };
 
+
+
   const parsed = extractJsonCandidate(raw);
   if (!parsed) {
-    throw new Error('生成失败：模型返回的不是合法 JSON');
+    // Log detailed information for debugging
+    console.error('Failed to parse JSON from LLM response:', {
+      responseLength: raw.length,
+      firstChars: raw.substring(0, 200),
+      lastChars: raw.substring(Math.max(0, raw.length - 200)),
+      model: env.OPENROUTER_CHAT_MODEL,
+      sessionId
+    });
+
+    throw new Error(`生成失败：模型返回的不是合法 JSON。响应长度: ${raw.length}字符。请重试或联系管理员。`);
   }
 
   const validation = lifeJourneySchema.safeParse(parsed);
@@ -288,7 +338,7 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
       const locationMatch = path.match(/locations\[(\d+)\]/);
       const locationIndex = locationMatch ? parseInt(locationMatch[1], 10) + 1 : null;
       const locationPrefix = locationIndex ? `第${locationIndex}个地点` : '某些地点';
-      
+
       if (path.includes('events')) {
         return `${locationPrefix}缺少关键事件（events），每个地点至少需要1个事件`;
       }
@@ -300,7 +350,7 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
       }
       return `${path}: ${issue.message}`;
     });
-    
+
     // Log the raw response for debugging
     console.error('Life journey validation failed:', {
       error: errorMessages[0],
@@ -308,7 +358,7 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
       rawResponseLength: raw.length,
       parsedKeys: parsed && typeof parsed === 'object' ? Object.keys(parsed) : []
     });
-    
+
     throw new Error(`生成数据不完整：${errorMessages[0] ?? '未知错误'}`);
   }
 
@@ -318,10 +368,15 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
     id: location.id ?? index + 1
   }));
 
-  return {
+  const journey = {
     ...validation.data,
     locations: withIds
   } satisfies LifeJourneyResponse;
+
+  return {
+    journey,
+    rawResponse: raw
+  };
 };
 
 export const ensureSessionLifeJourney = async (sessionId: number): Promise<LifeJourneyResponse> => {
@@ -337,9 +392,9 @@ export const ensureSessionLifeJourney = async (sessionId: number): Promise<LifeJ
     return existing;
   }
 
-  const generated = await generateLifeJourney(sessionId);
-  await storeLifeJourney(sessionId, generated);
-  return generated;
+  const { journey, rawResponse } = await generateLifeJourney(sessionId);
+  await storeLifeJourney(sessionId, journey, rawResponse);
+  return journey;
 };
 
 export const getStoredLifeJourney = async (sessionId: number): Promise<StoredLifeJourney | null> => {
@@ -372,11 +427,12 @@ export const refreshSessionLifeJourney = async (
   options: GenerateLifeJourneyOptions = {}
 ): Promise<LifeJourneyResponse> => {
   // Generate new journey - throws error if generation or validation fails
-  const generated = await generateLifeJourney(sessionId, options);
-  
+  const { journey, rawResponse } = await generateLifeJourney(sessionId, options);
+
   // Only store if generation succeeded and validated correctly
   // If this throws, the existing journey remains unchanged
-  await storeLifeJourney(sessionId, generated);
-  
-  return generated;
+  await storeLifeJourney(sessionId, journey, rawResponse);
+
+
+  return journey;
 };

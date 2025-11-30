@@ -1,0 +1,121 @@
+======================================================================
+  Incremental Journey Generation API Test
+======================================================================
+
+Session ID: 1
+Username: ylong
+Base URL: http://localhost:4000/api
+
+=== Logging in as teacher ===
+
+✅ Login successful
+Token: eyJhbGciOiJIUzI1NiIs...
+
+----------------------------------------------------------------------
+
+=== Testing Progress Endpoint ===
+
+✅ Progress endpoint response:
+{
+  "status": "none",
+  "progress": 0,
+  "currentLocation": null,
+  "totalLocations": 0,
+  "locations": []
+}
+
+----------------------------------------------------------------------
+
+=== Starting Incremental Generation ===
+
+✅ Generation started:
+{
+  "status": "processing"
+}
+
+----------------------------------------------------------------------
+
+=== Polling Progress (updates every 3 seconds) ===
+
+[11:51:47 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:51:50 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:51:53 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:51:56 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:51:59 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:02 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:05 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:08 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:11 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:14 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:17 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:20 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:23 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:26 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:29 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:32 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:35 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:38 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:41 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:44 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:47 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:50 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:53 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:56 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:52:59 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:02 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:05 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:08 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:11 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:14 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:17 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:20 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:23 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:26 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:29 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:32 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:35 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:38 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:41 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:44 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:47 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:50 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:53 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:56 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:53:59 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:02 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:05 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:08 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:11 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:14 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:17 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:20 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:23 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:26 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:29 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:32 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:35 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:38 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:41 AM] Status: none, Progress: 0%, Current: N/A/0
+[11:54:44 AM] Status: none, Progress: 0%, Current: N/A/0
+
+⚠️  Max polling attempts reached
+
+----------------------------------------------------------------------
+
+=== Verifying Final Journey ===
+
+✅ Final journey saved:
+  Hero: 王维
+  Locations: 7
+    1. 长安 (717年 - 721年)
+    2. 济州 (721年 - 725年)
+    3. 长安及周边 (725年 - 736年)
+    4. 凉州 (737年 - 738年)
+    5. 蓝田（辋川） (740年 - 755年)
+    6. 洛阳 (756年 - 758年)
+    7. 长安 (758年 - 761年)
+
+======================================================================
+⚠️  Tests completed with warnings
+======================================================================
+

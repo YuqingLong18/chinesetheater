@@ -1,0 +1,136 @@
+======================================================================
+  Incremental Journey Generation API Test
+======================================================================
+
+Session ID: 1
+Username: ylong
+Base URL: http://localhost:4000/api
+
+=== Logging in as teacher ===
+
+✅ Login successful
+Token: eyJhbGciOiJIUzI1NiIs...
+
+----------------------------------------------------------------------
+
+=== Testing Progress Endpoint ===
+
+✅ Progress endpoint response:
+{
+  "status": "none",
+  "progress": 0,
+  "currentLocation": null,
+  "totalLocations": 0,
+  "locations": []
+}
+
+----------------------------------------------------------------------
+
+=== Starting Incremental Generation ===
+
+✅ Generation started:
+{
+  "status": "processing"
+}
+
+----------------------------------------------------------------------
+
+=== Polling Progress (updates every 3 seconds) ===
+
+[12:09:43 PM] Status: in_progress, Progress: 0%, Current: 1/6
+  ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:09:46 PM] Status: in_progress, Progress: 0%, Current: 1/6
+  🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:09:49 PM] Status: in_progress, Progress: 0%, Current: 1/6
+  🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:09:52 PM] Status: in_progress, Progress: 0%, Current: 1/6
+  🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:09:55 PM] Status: in_progress, Progress: 0%, Current: 1/6
+  🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:09:58 PM] Status: in_progress, Progress: 0%, Current: 1/6
+  🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:01 PM] Status: in_progress, Progress: 0%, Current: 1/6
+  🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:04 PM] Status: in_progress, Progress: 17%, Current: 2/6
+  ✅ 太原祁县 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:07 PM] Status: in_progress, Progress: 17%, Current: 2/6
+  ✅ 太原祁县 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:10 PM] Status: in_progress, Progress: 17%, Current: 2/6
+  ✅ 太原祁县 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:13 PM] Status: in_progress, Progress: 17%, Current: 2/6
+  ✅ 太原祁县 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:16 PM] Status: in_progress, Progress: 17%, Current: 2/6
+  ✅ 太原祁县 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:19 PM] Status: in_progress, Progress: 17%, Current: 2/6
+  ✅ 太原祁县 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:22 PM] Status: in_progress, Progress: 17%, Current: 2/6
+  ✅ 太原祁县 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:25 PM] Status: in_progress, Progress: 33%, Current: 3/6
+  ✅ 太原祁县 | ✅ 长安 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:28 PM] Status: in_progress, Progress: 33%, Current: 3/6
+  ✅ 太原祁县 | ✅ 长安 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:31 PM] Status: in_progress, Progress: 33%, Current: 3/6
+  ✅ 太原祁县 | ✅ 长安 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:34 PM] Status: in_progress, Progress: 33%, Current: 3/6
+  ✅ 太原祁县 | ✅ 长安 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:37 PM] Status: in_progress, Progress: 33%, Current: 3/6
+  ✅ 太原祁县 | ✅ 长安 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:40 PM] Status: in_progress, Progress: 33%, Current: 3/6
+  ✅ 太原祁县 | ✅ 长安 | 🔄 Pending | ⏳ Pending | ⏳ Pending | ⏳ Pending
+[12:10:43 PM] Status: in_progress, Progress: 50%, Current: 4/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | 🔄 Pending | ⏳ Pending | ⏳ Pending
+[12:10:46 PM] Status: in_progress, Progress: 50%, Current: 4/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | 🔄 Pending | ⏳ Pending | ⏳ Pending
+[12:10:49 PM] Status: in_progress, Progress: 50%, Current: 4/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | 🔄 Pending | ⏳ Pending | ⏳ Pending
+[12:10:52 PM] Status: in_progress, Progress: 50%, Current: 4/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | 🔄 Pending | ⏳ Pending | ⏳ Pending
+[12:10:55 PM] Status: in_progress, Progress: 50%, Current: 4/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | 🔄 Pending | ⏳ Pending | ⏳ Pending
+[12:10:58 PM] Status: in_progress, Progress: 50%, Current: 4/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | 🔄 Pending | ⏳ Pending | ⏳ Pending
+[12:11:01 PM] Status: in_progress, Progress: 67%, Current: 5/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | 🔄 Pending | ⏳ Pending
+[12:11:04 PM] Status: in_progress, Progress: 67%, Current: 5/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | 🔄 Pending | ⏳ Pending
+[12:11:07 PM] Status: in_progress, Progress: 67%, Current: 5/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | 🔄 Pending | ⏳ Pending
+[12:11:10 PM] Status: in_progress, Progress: 67%, Current: 5/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | 🔄 Pending | ⏳ Pending
+[12:11:13 PM] Status: in_progress, Progress: 67%, Current: 5/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | 🔄 Pending | ⏳ Pending
+[12:11:16 PM] Status: in_progress, Progress: 83%, Current: 6/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | ✅ 凉州 | 🔄 Pending
+[12:11:19 PM] Status: in_progress, Progress: 83%, Current: 6/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | ✅ 凉州 | 🔄 Pending
+[12:11:22 PM] Status: in_progress, Progress: 83%, Current: 6/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | ✅ 凉州 | 🔄 Pending
+[12:11:25 PM] Status: in_progress, Progress: 83%, Current: 6/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | ✅ 凉州 | 🔄 Pending
+[12:11:28 PM] Status: in_progress, Progress: 83%, Current: 6/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | ✅ 凉州 | 🔄 Pending
+[12:11:31 PM] Status: in_progress, Progress: 83%, Current: 6/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | ✅ 凉州 | 🔄 Pending
+[12:11:34 PM] Status: completed, Progress: 100%, Current: 6/6
+  ✅ 太原祁县 | ✅ 长安 | ✅ 济州 | ✅ 长安 | ✅ 凉州 | ✅ 辋川
+
+✅ Generation completed successfully!
+
+----------------------------------------------------------------------
+
+=== Verifying Final Journey ===
+
+✅ Final journey saved:
+  Hero: 王维
+  Locations: 6
+    1. 太原祁县 (701-715)
+    2. 长安 (717-721)
+    3. 济州 (721-725)
+    4. 长安 (725-734)
+    5. 凉州 (737-738)
+    6. 辋川 (740-755)
+
+======================================================================
+✅ All tests passed!
+======================================================================
+

@@ -97,6 +97,21 @@ enum SessionTaskSubmissionStatus {
   resubmitted
 }
 
+enum GenerationStatus {
+  pending
+  in_progress
+  completed
+  failed
+  partial
+}
+
+enum LocationStatus {
+  pending
+  generating
+  completed
+  failed
+}
+
 // Teacher model is deprecated - using centralized authentication
 // Keeping for backward compatibility during migration
 model Teacher {
@@ -122,6 +137,9 @@ model Session {
   createdAt       DateTime         @default(now())
   lifeJourney     Json?
   lifeJourneyGeneratedAt DateTime?
+  lifeJourneyRawResponse String?  @db.Text  // Raw LLM response for debugging
+  lifeJourneyModel String?                   // Model used for generation
+  lifeJourneyAttempts Int?         @default(0) // Number of generation attempts
   students        Student[]
   conversations   Conversation[]
   images          GeneratedImage[]
@@ -130,9 +148,11 @@ model Session {
   imageComments   ImageComment[]
   tasks           SessionTask[]
   spacetimeAnalyses SpacetimeAnalysis[]
+  generations     LifeJourneyGeneration[]
 
   @@index([centralUserId])
 }
+
 
 
 model Student {
@@ -155,6 +175,51 @@ model Student {
   taskSubmissions SessionTaskSubmission[]
 
   @@unique([sessionId, username])
+}
+
+model LifeJourneyGeneration {
+  generationId    Int      @id @default(autoincrement())
+  session         Session  @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId       Int
+  status          GenerationStatus @default(pending)
+  progress        Int      @default(0) // 0-100
+  currentLocation Int?     // Index of location being generated
+  totalLocations  Int      @default(6)
+  model           String
+  teacherEntries  Json?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  completedAt     DateTime?
+  
+  locations       LifeJourneyLocation[]
+  
+  @@index([sessionId, status])
+}
+
+model LifeJourneyLocation {
+  locationId      Int      @id @default(autoincrement())
+  generation      LifeJourneyGeneration @relation(fields: [generationId], references: [generationId], onDelete: Cascade)
+  generationId    Int
+  orderIndex      Int
+  status          LocationStatus @default(pending)
+  name            String?
+  modernName      String?
+  latitude        Float?
+  longitude       Float?
+  period          String?
+  description     String?
+  events          Json?
+  geography       Json?
+  poems           Json?
+  rawResponse     String?  @db.Text
+  errorMessage    String?
+  attemptCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([generationId, orderIndex])
+  @@index([generationId, status])
 }
 
 model Conversation {

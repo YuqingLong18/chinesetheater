@@ -6,6 +6,7 @@ import { getSessionAnalytics, getSessionActivityFeed } from '../services/analyti
 import { createSessionSchema, studentBatchSchema } from '../schemas/auth.schema.js';
 import { getSessionTaskSummary } from '../services/task.service.js';
 import { getStoredLifeJourney, refreshSessionLifeJourney } from '../services/journey.service.js';
+import { LifeJourneyGenerator } from '../services/incremental-journey.service.js';
 
 const activeJourneyGenerations = new Set<number>();
 const journeyGenerationErrors = new Map<number, string>();
@@ -270,45 +271,42 @@ export const generateTeacherSessionLifeJourney = async (req: AuthRequest, res: R
     }
   }
 
-  if (isJourneyGenerating(sessionId)) {
-    return res.status(409).json({ message: '人生行迹正在生成，请稍候重试' });
-  }
-
   try {
     const session = await getSessionById(sessionId);
     if (!session || session.centralUserId !== req.user.id) {
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
-    journeyGenerationErrors.delete(sessionId);
-    activeJourneyGenerations.add(sessionId);
-
-    void (async () => {
-      try {
-        await refreshSessionLifeJourney(sessionId, {
-          entries: entries.length > 0 ? entries : undefined
-        });
-        journeyGenerationErrors.delete(sessionId);
-      } catch (error) {
-        console.error(`生成人生行迹失败: sessionId=${sessionId}`, error);
-        const message =
-          error instanceof Error && error.message
-            ? error.message
-            : '生成人生行迹失败，请稍后再试';
-        journeyGenerationErrors.set(sessionId, message);
-      } finally {
-        activeJourneyGenerations.delete(sessionId);
-      }
-    })();
+    // Use the new incremental generator
+    await LifeJourneyGenerator.startGeneration(
+      sessionId,
+      entries.length > 0 ? entries : undefined
+    );
 
     res.status(202).json({ status: 'processing' });
   } catch (error) {
+    console.error(`生成人生行迹失败: sessionId=${sessionId}`, error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : '生成人生行迹失败'
+    });
+  }
+};
+
+/**
+ * Get life journey generation progress
+ */
+export const getLifeJourneyProgress = async (req: AuthRequest, res: Response) => {
+  const sessionId = Number(req.params.sessionId);
+
+  if (Number.isNaN(sessionId)) {
+    return res.status(400).json({ message: '无效的会话ID' });
+  }
+
+  try {
+    const progress = await LifeJourneyGenerator.getProgress(sessionId);
+    res.json(progress);
+  } catch (error) {
     console.error(error);
-    activeJourneyGenerations.delete(sessionId);
-    journeyGenerationErrors.set(
-      sessionId,
-      error instanceof Error && error.message ? error.message : '生成人生行迹失败，请稍后再试'
-    );
-    res.status(500).json({ message: '生成人生行迹失败' });
+    res.status(500).json({ message: '获取生成进度失败' });
   }
 };

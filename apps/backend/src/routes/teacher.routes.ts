@@ -8,7 +8,8 @@ import {
   sessionActivityFeed,
   sessionTasksSummary,
   getTeacherSessionLifeJourney,
-  generateTeacherSessionLifeJourney
+  generateTeacherSessionLifeJourney,
+  getLifeJourneyProgress
 } from '../controllers/teacher.controller.js';
 import { authenticate } from '../middlewares/auth.js';
 
@@ -25,3 +26,4 @@ teacherRouter.get('/sessions/:sessionId/activity', sessionActivityFeed);
 teacherRouter.get('/sessions/:sessionId/tasks', sessionTasksSummary);
 teacherRouter.get('/sessions/:sessionId/life-journey', getTeacherSessionLifeJourney);
 teacherRouter.post('/sessions/:sessionId/life-journey', generateTeacherSessionLifeJourney);
+teacherRouter.get('/sessions/:sessionId/life-journey/progress', getLifeJourneyProgress);

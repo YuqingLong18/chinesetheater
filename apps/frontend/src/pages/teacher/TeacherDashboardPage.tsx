@@ -67,7 +67,7 @@ interface AnalyticsResponse {
       analysisType: SpacetimeAnalysisType;
       createdAt: string;
     }>;
-};
+  };
 }
 
 interface TaskDraft {
@@ -137,6 +137,13 @@ const TeacherDashboardPage = () => {
   const [journeyEntries, setJourneyEntries] = useState<LifeJourneyEntryInput[]>([]);
   const [journeyComposerVisible, setJourneyComposerVisible] = useState(false);
   const [journeyGenerating, setJourneyGenerating] = useState(false);
+  const [journeyProgress, setJourneyProgress] = useState(0);
+  const [journeyCurrentLocation, setJourneyCurrentLocation] = useState<number | null>(null);
+  const [journeyTotalLocations, setJourneyTotalLocations] = useState(0);
+  const [journeyLocationStatuses, setJourneyLocationStatuses] = useState<Array<{
+    name: string;
+    status: 'pending' | 'generating' | 'completed' | 'failed';
+  }>>([]);
   const journeyPollTimeoutRef = useRef<number | null>(null);
 
   const currentSession = useMemo(
@@ -245,6 +252,23 @@ const TeacherDashboardPage = () => {
     []
   );
 
+  const fetchJourneyProgress = useCallback(async (sessionId: number) => {
+    try {
+      const response = await client.get(`/teacher/sessions/${sessionId}/life-journey/progress`);
+      const { status, progress, currentLocation, totalLocations, locations } = response.data;
+
+      setJourneyProgress(progress);
+      setJourneyCurrentLocation(currentLocation);
+      setJourneyTotalLocations(totalLocations);
+      setJourneyLocationStatuses(locations || []);
+
+      return { status, progress, errorMessage: response.data.errorMessage };
+    } catch (error) {
+      console.error('Failed to fetch progress', error);
+      return null;
+    }
+  }, []);
+
   const scheduleJourneyPoll = useCallback(
     (sessionId: number, previousGeneratedAt: string | null, attempt = 0) => {
       if (journeyPollTimeoutRef.current) {
@@ -252,68 +276,59 @@ const TeacherDashboardPage = () => {
         journeyPollTimeoutRef.current = null;
       }
 
-      if (attempt >= JOURNEY_POLL_MAX_ATTEMPTS) {
-        setJourneyGenerating(false);
-        setJourneyError('AI 生成时间较长，请稍后再试或调整提示内容。');
-        setJourneyNotice(null);
-        return;
-      }
-
-      const delay = Math.min(
-        JOURNEY_POLL_INITIAL_DELAY + attempt * JOURNEY_POLL_DELAY_INCREMENT,
-        JOURNEY_POLL_INITIAL_DELAY + JOURNEY_POLL_DELAY_INCREMENT * JOURNEY_POLL_MAX_ATTEMPTS
-      );
+      // Shorter polling interval for smoother progress updates
+      const delay = 3000;
 
       journeyPollTimeoutRef.current = window.setTimeout(async () => {
-        const result = await fetchJourney(sessionId, true);
+        // Check progress first
+        const progressResult = await fetchJourneyProgress(sessionId);
 
-        if (!result) {
-          if (attempt + 1 >= JOURNEY_POLL_MAX_ATTEMPTS) {
-            journeyPollTimeoutRef.current = null;
+        if (!progressResult) {
+          // If progress check fails, fallback to old behavior or retry
+          if (attempt >= JOURNEY_POLL_MAX_ATTEMPTS) {
             setJourneyGenerating(false);
             setJourneyError('无法获取生成进度，请稍后再试。');
-            setJourneyNotice(null);
             return;
           }
-
           scheduleJourneyPoll(sessionId, previousGeneratedAt, attempt + 1);
           return;
         }
 
-        const { generatedAt, generating, errorMessage } = result;
-        const baselineGeneratedAt = generatedAt ?? previousGeneratedAt;
+        const { status, errorMessage } = progressResult;
 
-        if (errorMessage && !generating) {
-          // Generation failed - stop polling, show error, keep existing data
-          journeyPollTimeoutRef.current = null;
+        if (status === 'failed') {
           setJourneyGenerating(false);
-          setJourneyError(errorMessage);
+          setJourneyError(errorMessage || '生成失败，请重试');
           setJourneyNotice(null);
           return;
         }
 
-        if (!generating) {
-          // Generation completed - stop polling
-          journeyPollTimeoutRef.current = null;
+        if (status === 'completed') {
+          // Generation done, fetch final result
+          await fetchJourney(sessionId);
           setJourneyGenerating(false);
-          
-          // Only show success message if we got a new generation
-          if (generatedAt && previousGeneratedAt && generatedAt !== previousGeneratedAt) {
-            setJourneyNotice('人生行迹生成成功，学生端已同步更新');
-          } else if (generatedAt && !previousGeneratedAt) {
-            setJourneyNotice('人生行迹生成成功，学生端已同步更新');
-          } else if (!errorMessage) {
-            // Same timestamp - no new generation
-            setJourneyNotice('AI 生成完成，本次结果与之前一致。');
-          }
+          setJourneyNotice('人生行迹生成成功，学生端已同步更新');
           return;
         }
 
-        // Still generating - continue polling
-        scheduleJourneyPoll(sessionId, baselineGeneratedAt, attempt + 1);
+        if (status === 'in_progress' || status === 'pending') {
+          setJourneyGenerating(true);
+          // Continue polling
+          scheduleJourneyPoll(sessionId, previousGeneratedAt, attempt + 1);
+          return;
+        }
+
+        // If status is 'none' but we thought we were generating, maybe it finished or hasn't started?
+        // Fallback to checking the journey endpoint directly
+        const result = await fetchJourney(sessionId, true);
+        if (result?.generating) {
+          scheduleJourneyPoll(sessionId, previousGeneratedAt, attempt + 1);
+        } else {
+          setJourneyGenerating(false);
+        }
       }, delay);
     },
-    [fetchJourney]
+    [fetchJourney, fetchJourneyProgress]
   );
 
   const refreshCurrentSession = async () => {
@@ -1001,13 +1016,54 @@ const TeacherDashboardPage = () => {
             ) : (
               <>
                 {journeyGenerating ? (
-                  <div className="rounded-lg border border-lavender-200 bg-lavender-50 px-4 py-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-lavender-200 border-t-lavender-600" />
-                      <p className="text-sm font-medium text-lavender-700">
-                        AI 正在生成人生行迹，请稍候...（这可能需要几分钟时间）
-                      </p>
+                  <div className="rounded-lg border border-lavender-200 bg-lavender-50 px-4 py-4 mb-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-lavender-200 border-t-lavender-600" />
+                        <p className="text-sm font-medium text-lavender-700">
+                          AI 正在生成人生行迹... {journeyProgress}%
+                        </p>
+                      </div>
+                      <span className="text-xs text-lavender-600">
+                        {journeyCurrentLocation !== null && journeyTotalLocations > 0
+                          ? `正在生成第 ${journeyCurrentLocation + 1} / ${journeyTotalLocations} 个地点`
+                          : '准备中...'}
+                      </span>
                     </div>
+
+                    {/* Progress Bar */}
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-lavender-200">
+                      <div
+                        className="h-full bg-lavender-500 transition-all duration-500 ease-out"
+                        style={{ width: `${journeyProgress}%` }}
+                      />
+                    </div>
+
+                    {/* Location Status List */}
+                    {journeyLocationStatuses.length > 0 && (
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                        {journeyLocationStatuses.map((loc, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5 text-xs">
+                            {loc.status === 'completed' ? (
+                              <span className="text-green-500">✓</span>
+                            ) : loc.status === 'generating' ? (
+                              <span className="animate-pulse text-lavender-500">●</span>
+                            ) : loc.status === 'failed' ? (
+                              <span className="text-red-500">✕</span>
+                            ) : (
+                              <span className="text-gray-300">○</span>
+                            )}
+                            <span className={`${loc.status === 'completed' ? 'text-gray-700' :
+                              loc.status === 'generating' ? 'font-medium text-lavender-700' :
+                                loc.status === 'failed' ? 'text-red-600' :
+                                  'text-gray-400'
+                              } truncate`}>
+                              {loc.name || `地点 ${idx + 1}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : null}
                 {journeyNotice && !journeyGenerating ? (
@@ -1588,11 +1644,10 @@ const TeacherDashboardPage = () => {
                               <span>{new Date(item.createdAt).toLocaleString('zh-CN')}</span>
                             </div>
                             <span
-                              className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
-                                item.actionType === 'generation'
-                                  ? 'bg-lavender-100 text-lavender-600'
-                                  : 'bg-gray-100 text-gray-600'
-                              }`}
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs ${item.actionType === 'generation'
+                                ? 'bg-lavender-100 text-lavender-600'
+                                : 'bg-gray-100 text-gray-600'
+                                }`}
                             >
                               {item.actionType === 'generation' ? '初次生成' : '编辑优化'}
                             </span>
