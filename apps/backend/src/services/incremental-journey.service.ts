@@ -67,7 +67,7 @@ export class LifeJourneyGenerator {
                 currentLocation: 0,
                 totalLocations,
                 model: env.OPENROUTER_CHAT_MODEL,
-                teacherEntries: validEntries.length > 0 ? validEntries : Prisma.JsonNull
+                teacherEntries: validEntries.length > 0 ? (validEntries as any) : Prisma.JsonNull
             }
         });
 
