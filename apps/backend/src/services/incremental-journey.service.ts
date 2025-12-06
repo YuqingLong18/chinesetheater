@@ -56,7 +56,62 @@ export class LifeJourneyGenerator {
                 (entry.poems && entry.poems.trim())
             )
         );
-        const totalLocations = Math.max(6, validEntries.length);
+
+        // Always ask AI to determine optimal number of stages
+        // Manual entries will be incorporated at specific positions, but AI fills in the rest
+        let totalLocations = 6; // Default fallback
+
+        try {
+            const manualEntriesContext = validEntries.length > 0
+                ? `\n\nThe teacher has provided ${validEntries.length} manual entries for specific periods. You should generate enough stages to cover the author's entire life, including periods before and after these manual entries.`
+                : '';
+
+            const stageCountPrompt = `Analyze ${session.authorName}'s life and determine the optimal number of distinct life stages/locations to include in their biography.${manualEntriesContext}
+
+Consider:
+- Major relocations and significant periods in different locations
+- Important life phases (childhood, education, career peaks, exile, retirement, etc.)
+- Historical significance of each period
+- Geographic diversity of their experiences
+
+Return ONLY a JSON object with this format:
+{
+  "recommendedStages": <number between 3 and 12>,
+  "reasoning": "brief explanation"
+}`;
+
+            const response = await callOpenRouter<{ choices?: Array<{ message?: { content?: string } }> }>(
+                '/chat/completions',
+                {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        model: env.OPENROUTER_CHAT_MODEL,
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are a literary historian. Return ONLY valid JSON.'
+                            },
+                            {
+                                role: 'user',
+                                content: stageCountPrompt
+                            }
+                        ]
+                    }),
+                    timeoutMs: 30_000,
+                    maxRetries: 2
+                }
+            );
+
+            const raw = response.choices?.[0]?.message?.content ?? '';
+            const parsed = JSON.parse(raw.trim());
+            totalLocations = Math.max(3, Math.min(12, parsed.recommendedStages || 6));
+        } catch (error) {
+            console.warn('Failed to get AI stage count recommendation, defaulting to 6:', error);
+            totalLocations = 6;
+        }
+
+        // Ensure we have at least as many stages as manual entries
+        totalLocations = Math.max(totalLocations, validEntries.length);
 
         // Create generation record
         const generation = await prisma.lifeJourneyGeneration.create({

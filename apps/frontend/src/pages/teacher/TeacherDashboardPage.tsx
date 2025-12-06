@@ -1074,118 +1074,170 @@ const TeacherDashboardPage = () => {
                 ) : null}
                 {journeyComposerVisible ? (
                   <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">
-                        添加行迹条目（可选）
+                    <div className="rounded-lg border border-lavender-200 bg-lavender-50 p-4">
+                      <p className="text-sm font-semibold text-lavender-700">
+                        📝 手动输入确保准确性
                       </p>
-                      <p className="mt-1 text-xs text-gray-600">
-                        每个条目至少填写一个字段，AI将严格遵循您提供的信息并补充缺失部分。除了您提供的条目外，AI还会继续补全该作者的其他重要行迹。
+                      <p className="mt-2 text-xs text-lavender-600 leading-relaxed">
+                        您可以为作者人生中的<strong>特定阶段</strong>添加手动条目。这些条目中填写的字段将<strong>确保准确显示</strong>在最终地图上。
+                        AI 将自动生成作者的<strong>完整人生轨迹</strong>（通常 3-12 个阶段），包括您手动指定阶段的前后时期。
+                        空白字段将由 AI 自动补全。
                       </p>
+                      <div className="mt-3 rounded-lg bg-white/50 p-3 text-xs text-lavender-700">
+                        <p className="font-medium">💡 示例</p>
+                        <p className="mt-1 text-lavender-600">
+                          如果您想强调作者 725-728 年的某个重要时期，只需添加一个条目填写这些年份和相关信息。
+                          AI 会自动生成该时期之前和之后的其他人生阶段，形成完整的生平轨迹。
+                        </p>
+                      </div>
+                      {journeyEntries.length > 0 && (
+                        <div className="mt-3 flex items-center gap-2 text-xs text-lavender-700">
+                          <span className="font-medium">已添加 {journeyEntries.length} 个手动条目</span>
+                          <span className="text-lavender-500">•</span>
+                          <span>
+                            {journeyEntries.filter(hasAnyEntryField).length} 个包含数据
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-3">
-                      {journeyEntries.map((entry, index) => (
-                        <div
-                          key={index}
-                          className="rounded-lg border border-gray-200 bg-white p-4"
-                        >
-                          <div className="mb-3 flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-700">
-                              条目 {index + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveJourneyEntry(index)}
-                              className="text-xs text-gray-500 transition hover:text-gray-700"
-                              disabled={journeyLoading || journeyGenerating}
-                            >
-                              删除
-                            </button>
-                          </div>
+                      {journeyEntries.map((entry, index) => {
+                        const filledFieldCount = [
+                          entry.startYear,
+                          entry.endYear,
+                          entry.ancientName?.trim(),
+                          entry.modernName?.trim(),
+                          entry.events?.trim(),
+                          entry.geography?.trim(),
+                          entry.poems?.trim()
+                        ].filter(Boolean).length;
 
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <TextInput
-                              label="起始年份"
-                              type="number"
-                              placeholder="例如：732"
-                              value={entry.startYear?.toString() ?? ''}
-                              onChange={(e) =>
-                                handleUpdateJourneyEntry(
-                                  index,
-                                  'startYear',
-                                  e.target.value ? parseInt(e.target.value, 10) : null
-                                )
-                              }
-                              disabled={journeyLoading || journeyGenerating}
-                            />
-                            <TextInput
-                              label="终止年份"
-                              type="number"
-                              placeholder="例如：735"
-                              value={entry.endYear?.toString() ?? ''}
-                              onChange={(e) =>
-                                handleUpdateJourneyEntry(
-                                  index,
-                                  'endYear',
-                                  e.target.value ? parseInt(e.target.value, 10) : null
-                                )
-                              }
-                              disabled={journeyLoading || journeyGenerating}
-                            />
-                            <TextInput
-                              label="古代地名"
-                              placeholder="例如：洛阳"
-                              value={entry.ancientName ?? ''}
-                              onChange={(e) =>
-                                handleUpdateJourneyEntry(index, 'ancientName', e.target.value || null)
-                              }
-                              disabled={journeyLoading || journeyGenerating}
-                            />
-                            <TextInput
-                              label="现代地名"
-                              placeholder="例如：河南洛阳"
-                              value={entry.modernName ?? ''}
-                              onChange={(e) =>
-                                handleUpdateJourneyEntry(index, 'modernName', e.target.value || null)
-                              }
-                              disabled={journeyLoading || journeyGenerating}
-                            />
-                          </div>
+                        return (
+                          <div
+                            key={index}
+                            className="rounded-lg border border-gray-200 bg-white p-4"
+                          >
+                            <div className="mb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-700">
+                                  条目 {index + 1}
+                                </span>
+                                {filledFieldCount > 0 && (
+                                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                                    ✓ {filledFieldCount} 个字段已填写
+                                  </span>
+                                )}
+                                {filledFieldCount === 0 && (
+                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                    空白 - 将由 AI 生成
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveJourneyEntry(index)}
+                                className="text-xs text-gray-500 transition hover:text-gray-700"
+                                disabled={journeyLoading || journeyGenerating}
+                              >
+                                删除
+                              </button>
+                            </div>
 
-                          <div className="mt-3 space-y-3">
-                            <TextArea
-                              label="关键事件"
-                              placeholder="描述该时间段发生的关键事件"
-                              value={entry.events ?? ''}
-                              onChange={(e) =>
-                                handleUpdateJourneyEntry(index, 'events', e.target.value || null)
-                              }
-                              rows={2}
-                              disabled={journeyLoading || journeyGenerating}
-                            />
-                            <TextArea
-                              label="地理风物"
-                              placeholder="描述该地点的地形、植被、水域、气候等"
-                              value={entry.geography ?? ''}
-                              onChange={(e) =>
-                                handleUpdateJourneyEntry(index, 'geography', e.target.value || null)
-                              }
-                              rows={2}
-                              disabled={journeyLoading || journeyGenerating}
-                            />
-                            <TextArea
-                              label="代表诗作"
-                              placeholder="列出该阶段或地点的代表诗作（标题和内容）"
-                              value={entry.poems ?? ''}
-                              onChange={(e) =>
-                                handleUpdateJourneyEntry(index, 'poems', e.target.value || null)
-                              }
-                              rows={3}
-                              disabled={journeyLoading || journeyGenerating}
-                            />
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div>
+                                <TextInput
+                                  label="起始年份"
+                                  type="number"
+                                  placeholder="例如：732"
+                                  value={entry.startYear?.toString() ?? ''}
+                                  onChange={(e) =>
+                                    handleUpdateJourneyEntry(
+                                      index,
+                                      'startYear',
+                                      e.target.value ? parseInt(e.target.value, 10) : null
+                                    )
+                                  }
+                                  disabled={journeyLoading || journeyGenerating}
+                                />
+                                {!entry.startYear && (
+                                  <p className="mt-1 text-xs text-gray-500">留空将由 AI 推断</p>
+                                )}
+                              </div>
+                              <div>
+                                <TextInput
+                                  label="终止年份"
+                                  type="number"
+                                  placeholder="例如：735"
+                                  value={entry.endYear?.toString() ?? ''}
+                                  onChange={(e) =>
+                                    handleUpdateJourneyEntry(
+                                      index,
+                                      'endYear',
+                                      e.target.value ? parseInt(e.target.value, 10) : null
+                                    )
+                                  }
+                                  disabled={journeyLoading || journeyGenerating}
+                                />
+                                {!entry.endYear && (
+                                  <p className="mt-1 text-xs text-gray-500">留空将由 AI 推断</p>
+                                )}
+                              </div>
+                              <TextInput
+                                label="古代地名"
+                                placeholder="例如：洛阳"
+                                value={entry.ancientName ?? ''}
+                                onChange={(e) =>
+                                  handleUpdateJourneyEntry(index, 'ancientName', e.target.value || null)
+                                }
+                                disabled={journeyLoading || journeyGenerating}
+                              />
+                              <TextInput
+                                label="现代地名"
+                                placeholder="例如：河南洛阳"
+                                value={entry.modernName ?? ''}
+                                onChange={(e) =>
+                                  handleUpdateJourneyEntry(index, 'modernName', e.target.value || null)
+                                }
+                                disabled={journeyLoading || journeyGenerating}
+                              />
+                            </div>
+
+                            <div className="mt-3 space-y-3">
+                              <TextArea
+                                label="关键事件"
+                                placeholder="描述该时间段发生的关键事件"
+                                value={entry.events ?? ''}
+                                onChange={(e) =>
+                                  handleUpdateJourneyEntry(index, 'events', e.target.value || null)
+                                }
+                                rows={2}
+                                disabled={journeyLoading || journeyGenerating}
+                              />
+                              <TextArea
+                                label="地理风物"
+                                placeholder="描述该地点的地形、植被、水域、气候等"
+                                value={entry.geography ?? ''}
+                                onChange={(e) =>
+                                  handleUpdateJourneyEntry(index, 'geography', e.target.value || null)
+                                }
+                                rows={2}
+                                disabled={journeyLoading || journeyGenerating}
+                              />
+                              <TextArea
+                                label="代表诗作"
+                                placeholder="列出该阶段或地点的代表诗作（标题和内容）"
+                                value={entry.poems ?? ''}
+                                onChange={(e) =>
+                                  handleUpdateJourneyEntry(index, 'poems', e.target.value || null)
+                                }
+                                rows={3}
+                                disabled={journeyLoading || journeyGenerating}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     <div className="flex flex-wrap gap-3">
