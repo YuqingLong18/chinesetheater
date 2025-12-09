@@ -3,6 +3,7 @@ import type { WorkshopSuggestionType } from '@prisma/client';
 import { callOpenRouter } from '../lib/openrouter.js';
 import { env } from '../config/env.js';
 import { workshopService } from './workshop.service.js';
+import { contentFilter } from '../lib/contentFilter.js';
 
 const parseJson = (text: string) => {
   try {
@@ -43,6 +44,16 @@ export const evaluateRelayContribution = async (roomId: number, contributionId: 
   }
 
   if (contribution.room.mode !== 'relay') {
+    return;
+  }
+
+  const filterResult = await contentFilter.check(contribution.content);
+  if (!filterResult.allowed) {
+    // If content is blocked, we might want to flag it or just not generate feedback.
+    // Since this is an async background process, throwing might not be the best UX unless handled.
+    // For now, let's just return and maybe log it.
+    console.warn(`[workshop.ai] Contribution ${contributionId} blocked by content filter.`);
+    await workshopService.recordFeedback(roomId, contributionId, { error: '内容包含不当信息，无法生成点评。' } as any);
     return;
   }
 

@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { callOpenRouter } from '../lib/openrouter.js';
 import { env } from '../config/env.js';
+import { contentFilter } from '../lib/contentFilter.js';
 
 const buildSystemPrompt = (authorName: string, literatureTitle: string) => `你是${authorName}，《${literatureTitle}》的作者。请基于以下要求与学生对话:
 1. 使用第一人称,以作者身份回答问题
@@ -30,6 +31,11 @@ export const sendStudentMessage = async (
   const session = await prisma.session.findUnique({ where: { sessionId } });
   if (!session) {
     throw new Error('课堂会话不存在');
+  }
+
+  const filterResult = await contentFilter.check(message);
+  if (!filterResult.allowed) {
+    throw new Error('您的消息包含不当内容，请修改后重试。');
   }
 
   const conversation = await prisma.conversation.upsert({

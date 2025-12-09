@@ -14,7 +14,9 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: z.string().min(1, 'OPENROUTER_API_KEY 未配置'),
   OPENROUTER_CHAT_MODEL: z.string().default('anthropic/claude-3.5-sonnet'),
   OPENROUTER_IMAGE_MODEL: z.string().default('openai/dall-e-3'),
-  CENTRAL_AUTH_URL: z.string().default('http://localhost:3000')
+  CENTRAL_AUTH_URL: z.string().default('http://localhost:3000'),
+  VOLCENGINE_API_KEY: z.string().optional(),
+  VOLCENGINE_MODERATION_MODEL: z.string().default('doubao-seed-1-6-251015')
 });
 
 export type Env = z.infer<typeof envSchema>;

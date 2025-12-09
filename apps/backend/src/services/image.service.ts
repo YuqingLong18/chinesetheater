@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { prisma } from '../lib/prisma.js';
 import { callOpenRouter } from '../lib/openrouter.js';
 import { env } from '../config/env.js';
+import { contentFilter } from '../lib/contentFilter.js';
 
 interface OpenRouterImageResponse {
   data: Array<{
@@ -16,23 +17,23 @@ interface OpenRouterChatImageChoice {
     images?: Array<
       | string
       | {
-          image_url?: { url?: string } | string;
-          url?: string;
-          image_base64?: string;
-          b64_json?: string;
-          base64?: string;
-        }
+        image_url?: { url?: string } | string;
+        url?: string;
+        image_base64?: string;
+        b64_json?: string;
+        base64?: string;
+      }
     >;
     content?: Array<
       | string
       | {
-          type?: string;
-          text?: string;
-          url?: string;
-          image_url?: string;
-          image_base64?: string;
-          data?: string;
-        }
+        type?: string;
+        text?: string;
+        url?: string;
+        image_url?: string;
+        image_base64?: string;
+        data?: string;
+      }
     >;
   };
 }
@@ -149,19 +150,19 @@ const buildEditMessages = (
   editInstruction: string,
   sceneDescription: string
 ) => [
-  {
-    role: 'system',
-    content: '你是一名图像创作助手，请在保留原画核心风格的基础上进行细节修改。'
-  },
-  {
-    role: 'user',
-    content: [
-      { type: 'text', text: `原始创作风格：${style}。原始场景描述：${sceneDescription}` },
-      { type: 'text', text: `编辑指令：${editInstruction}` },
-      { type: 'image_url', image_url: { url: baseImage } }
-    ]
-  }
-];
+    {
+      role: 'system',
+      content: '你是一名图像创作助手，请在保留原画核心风格的基础上进行细节修改。'
+    },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: `原始创作风格：${style}。原始场景描述：${sceneDescription}` },
+        { type: 'text', text: `编辑指令：${editInstruction}` },
+        { type: 'image_url', image_url: { url: baseImage } }
+      ]
+    }
+  ];
 
 const shouldUseImagesEndpoint = (model: string) => model.startsWith('openai/dall-e');
 
@@ -171,6 +172,11 @@ export const generateImage = async (
   style: string,
   sceneDescription: string
 ) => {
+  const filterResult = await contentFilter.check(sceneDescription);
+  if (!filterResult.allowed) {
+    throw new Error('您的描述包含不当内容，请修改后重试。');
+  }
+
   const student = await prisma.student.findUnique({
     where: { studentId },
     include: { images: { orderBy: { createdAt: 'desc' } } }
@@ -265,6 +271,11 @@ export const editGeneratedImage = async (
   imageId: number,
   editInstruction: string
 ) => {
+  const filterResult = await contentFilter.check(editInstruction);
+  if (!filterResult.allowed) {
+    throw new Error('您的指令包含不当内容，请修改后重试。');
+  }
+
   const model = env.OPENROUTER_IMAGE_MODEL;
   if (shouldUseImagesEndpoint(model)) {
     throw new Error('当前模型暂不支持图像编辑，请更换支持图像编辑的模型');
