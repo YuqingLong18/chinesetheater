@@ -3,6 +3,7 @@ import clsx from 'clsx';
 
 interface GradientButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'tertiary';
+  size?: 'sm' | 'md' | 'lg';
   children: ReactNode;
 }
 
@@ -12,14 +13,21 @@ const variantClasses: Record<Required<GradientButtonProps>['variant'], string> =
   tertiary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed'
 };
 
-const GradientButton = ({ variant = 'primary', children, className, ...props }: GradientButtonProps) => (
-  <button 
-    type="button" 
+const sizeClasses: Record<Required<GradientButtonProps>['size'], string> = {
+  sm: 'py-1.5 px-3 text-sm',
+  md: 'py-2.5 px-5 text-base',
+  lg: 'py-3 px-6 text-lg'
+};
+
+const GradientButton = ({ variant = 'primary', size = 'md', children, className, ...props }: GradientButtonProps) => (
+  <button
+    type="button"
     className={clsx(
-      'font-medium rounded-lg py-2.5 px-5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-lavender-300 focus:ring-offset-2',
-      variantClasses[variant], 
+      'font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-lavender-300 focus:ring-offset-2',
+      variantClasses[variant],
+      sizeClasses[size],
       className
-    )} 
+    )}
     {...props}
   >
     {children}

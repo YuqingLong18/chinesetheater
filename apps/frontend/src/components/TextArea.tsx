@@ -2,13 +2,13 @@ import type { TextareaHTMLAttributes } from 'react';
 import clsx from 'clsx';
 
 interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label: string;
+  label?: string;
   hint?: string;
 }
 
 const TextArea = ({ label, hint, className, ...props }: TextAreaProps) => (
   <label className="flex flex-col gap-1.5">
-    <span className="text-sm font-medium text-gray-700">{label}</span>
+    {label && <span className="text-sm font-medium text-gray-700">{label}</span>}
     <textarea
       className={clsx(
         'w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400',
