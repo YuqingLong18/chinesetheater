@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { callOpenRouter } from '../lib/openrouter.js';
+import { callVolcengineChat, moderateContent } from '../lib/volcengine.js';
 import { env } from '../config/env.js';
 
 const buildSystemPrompt = (authorName: string, literatureTitle: string) => `你是${authorName}，《${literatureTitle}》的作者。请基于以下要求与学生对话:
@@ -13,20 +13,17 @@ const buildSystemPrompt = (authorName: string, literatureTitle: string) => `你�
 
 学生现在想与你交流,请开始对话。`;
 
-type OpenRouterChatResponse = {
-  choices: Array<{
-    message: {
-      content: string;
-      role: string;
-    };
-  }>;
-};
-
 export const sendStudentMessage = async (
   studentId: number,
   sessionId: number,
   message: string
 ) => {
+  // 1. Content Moderation
+  const moderation = await moderateContent(message);
+  if (!moderation.allowed) {
+    throw new Error('消息包含不当内容，已被拦截。');
+  }
+
   const session = await prisma.session.findUnique({ where: { sessionId } });
   if (!session) {
     throw new Error('课堂会话不存在');
@@ -67,7 +64,7 @@ export const sendStudentMessage = async (
   });
 
   const payload = {
-    model: env.OPENROUTER_CHAT_MODEL,
+    model: env.VOLCENGINE_CHAT_MODEL,
     messages: [
       { role: 'system', content: buildSystemPrompt(session.authorName, session.literatureTitle) },
       ...history.map((item) => ({
@@ -77,10 +74,7 @@ export const sendStudentMessage = async (
     ]
   };
 
-  const response = await callOpenRouter<OpenRouterChatResponse>('/chat/completions', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
+  const response = await callVolcengineChat(payload);
 
   const aiReply = response.choices[0]?.message.content ?? '抱歉，我暂时无法回答，请稍后再试。';
 

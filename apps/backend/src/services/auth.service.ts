@@ -39,6 +39,10 @@ export const authenticateStudent = async (sessionPin: string, username: string, 
     return null;
   }
 
+  if (!student.passwordHash) {
+    return null;
+  }
+
   const isValid = await comparePassword(password, student.passwordHash);
   if (!isValid) {
     return null;

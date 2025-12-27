@@ -1,50 +1,12 @@
 import { Buffer } from 'node:buffer';
 import { prisma } from '../lib/prisma.js';
-import { callOpenRouter } from '../lib/openrouter.js';
+import { callVolcengineImage, callVolcengineChat, moderateContent } from '../lib/volcengine.js';
 import { env } from '../config/env.js';
-
-interface OpenRouterImageResponse {
-  data: Array<{
-    url?: string;
-    b64_json?: string;
-    base64?: string;
-  }>;
-}
-
-interface OpenRouterChatImageChoice {
-  message?: {
-    images?: Array<
-      | string
-      | {
-          image_url?: { url?: string } | string;
-          url?: string;
-          image_base64?: string;
-          b64_json?: string;
-          base64?: string;
-        }
-    >;
-    content?: Array<
-      | string
-      | {
-          type?: string;
-          text?: string;
-          url?: string;
-          image_url?: string;
-          image_base64?: string;
-          data?: string;
-        }
-    >;
-  };
-}
-
-interface OpenRouterChatImageResponse {
-  choices?: OpenRouterChatImageChoice[];
-}
 
 const toDataUrl = (base64: string, mime = 'image/png') =>
   base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
 
-const resolveImageFromChatResponse = (response: OpenRouterChatImageResponse): string => {
+const resolveImageFromChatResponse = (response: any): string => {
   const visited = new Set<unknown>();
   const queue: unknown[] = [];
 
@@ -149,21 +111,19 @@ const buildEditMessages = (
   editInstruction: string,
   sceneDescription: string
 ) => [
-  {
-    role: 'system',
-    content: '你是一名图像创作助手，请在保留原画核心风格的基础上进行细节修改。'
-  },
-  {
-    role: 'user',
-    content: [
-      { type: 'text', text: `原始创作风格：${style}。原始场景描述：${sceneDescription}` },
-      { type: 'text', text: `编辑指令：${editInstruction}` },
-      { type: 'image_url', image_url: { url: baseImage } }
-    ]
-  }
-];
-
-const shouldUseImagesEndpoint = (model: string) => model.startsWith('openai/dall-e');
+    {
+      role: 'system',
+      content: '你是一名图像创作助手，请在保留原画核心风格的基础上进行细节修改。'
+    },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: `原始创作风格：${style}。原始场景描述：${sceneDescription}` },
+        { type: 'text', text: `编辑指令：${editInstruction}` },
+        { type: 'image_url', image_url: { url: baseImage } }
+      ]
+    }
+  ];
 
 export const generateImage = async (
   studentId: number,
@@ -180,6 +140,12 @@ export const generateImage = async (
     throw new Error('学生信息不匹配');
   }
 
+  // Content Moderation
+  const moderation = await moderateContent(`${style} ${sceneDescription}`);
+  if (!moderation.allowed) {
+    throw new Error('描述包含不当内容，无法生成。');
+  }
+
   await prisma.student.update({
     where: { studentId },
     data: { lastActivityAt: new Date() }
@@ -192,45 +158,13 @@ export const generateImage = async (
     throw new Error('编辑次数已用完');
   }
 
-  const model = env.OPENROUTER_IMAGE_MODEL;
-  let imageUrl: string | undefined;
+  const response = await callVolcengineImage({
+    model: env.VOLCENGINE_IMAGE_MODEL,
+    prompt: `以${style}风格创作：${sceneDescription}`,
+    size: '2048x2048'
+  });
 
-  if (shouldUseImagesEndpoint(model)) {
-    const prompt = `A ${style} style image depicting: ${sceneDescription}. High quality, detailed, Chinese aesthetic.`;
-
-    const response = await callOpenRouter<OpenRouterImageResponse>('/images', {
-      method: 'POST',
-      body: JSON.stringify({
-        model,
-        prompt
-      })
-    });
-
-    const candidate = response.data?.[0];
-    imageUrl = candidate?.url ?? (candidate?.b64_json ? toDataUrl(candidate.b64_json) : undefined);
-  } else {
-    const payload = {
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: '你是一名图像创作助手，请根据学生提供的中文描述生成高质量图像。'
-        },
-        {
-          role: 'user',
-          content: `请以${style}风格创作图像，场景描述：${sceneDescription}`
-        }
-      ],
-      modalities: ['image']
-    };
-
-    const response = await callOpenRouter<OpenRouterChatImageResponse>('/chat/completions', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-
-    imageUrl = resolveImageFromChatResponse(response);
-  }
+  const imageUrl = response.data?.[0]?.url;
 
   if (!imageUrl) {
     throw new Error('图像生成失败');
@@ -265,35 +199,33 @@ export const editGeneratedImage = async (
   imageId: number,
   editInstruction: string
 ) => {
-  const model = env.OPENROUTER_IMAGE_MODEL;
-  if (shouldUseImagesEndpoint(model)) {
-    throw new Error('当前模型暂不支持图像编辑，请更换支持图像编辑的模型');
-  }
-
   const image = await prisma.generatedImage.findUnique({ where: { imageId } });
   if (!image || image.studentId !== studentId) {
     throw new Error('图片不存在或无权编辑');
   }
+
+  // Content Moderation
+  const moderation = await moderateContent(editInstruction);
+  if (!moderation.allowed) {
+    throw new Error('编辑指令包含不当内容。');
+  }
+
 
   if (image.editCount >= 2) {
     throw new Error('编辑次数已用完');
   }
 
   const baseImage = await fetchImageAsDataUrl(image.imageUrl);
-  const previousState: ImageVersion = {
+  const previousState = {
     imageUrl: image.imageUrl,
     style: image.style,
     sceneDescription: image.sceneDescription,
     editCount: image.editCount
   };
 
-  const response = await callOpenRouter<OpenRouterChatImageResponse>('/chat/completions', {
-    method: 'POST',
-    body: JSON.stringify({
-      model,
-      messages: buildEditMessages(image.style, baseImage, editInstruction, image.sceneDescription),
-      modalities: ['image']
-    })
+  const response = await callVolcengineChat({
+    model: env.VOLCENGINE_CHAT_MODEL,
+    messages: buildEditMessages(image.style, baseImage, editInstruction, image.sceneDescription) as any
   });
 
   const updatedImageUrl = resolveImageFromChatResponse(response);

@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import type { WorkshopSuggestionType } from '@prisma/client';
-import { callOpenRouter } from '../lib/openrouter.js';
+import { callVolcengineChat, moderateContent } from '../lib/volcengine.js';
 import { env } from '../config/env.js';
 import { workshopService } from './workshop.service.js';
 
@@ -42,6 +42,13 @@ export const evaluateRelayContribution = async (roomId: number, contributionId: 
     return;
   }
 
+  // Content Moderation
+  const moderation = await moderateContent(contribution.content);
+  if (!moderation.allowed) {
+    await workshopService.recordFeedback(roomId, contributionId, { error: '内容包含敏感信息，无法进行评价。' } as any);
+    return;
+  }
+
   if (contribution.room.mode !== 'relay') {
     return;
   }
@@ -72,25 +79,19 @@ ${previousLines || '（暂无前文）'}
 
   let feedback: unknown;
   try {
-    const response = await callOpenRouter<{ choices?: Array<{ message?: { content?: string } }> }>(
-      '/chat/completions',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          model: env.OPENROUTER_CHAT_MODEL,
-          messages: [
-            {
-              role: 'system',
-              content: '你是一名温暖的古诗词导师，擅长在格律与意境之间给予学生建设性反馈。严格遵守用户给定的JSON格式。'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        })
-      }
-    );
+    const response = await callVolcengineChat({
+      model: env.VOLCENGINE_CHAT_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: '你是一名温暖的古诗词导师，擅长在格律与意境之间给予学生建设性反馈。严格遵守用户给定的JSON格式。'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
 
     const raw = response.choices?.[0]?.message?.content ?? '';
     feedback = parseJson(raw) ?? { error: '解析失败', raw };
@@ -146,25 +147,19 @@ export const generateAdaptationSuggestions = async (
     `- type 请从给定枚举中选择\n- 用正向、鼓励式语言给出操作性建议\n- 长度控制在 120 字以内\n- 严格返回 JSON 数组，不要附加其他文字`;
 
   try {
-    const response = await callOpenRouter<{ choices?: Array<{ message?: { content?: string } }> }>(
-      '/chat/completions',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          model: env.OPENROUTER_CHAT_MODEL,
-          messages: [
-            {
-              role: 'system',
-              content: '你是一位温柔的古典文学导师，擅长保持原作精神并提出现代化建议。严格按照用户给定的 JSON 输出。'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        })
-      }
-    );
+    const response = await callVolcengineChat({
+      model: env.VOLCENGINE_CHAT_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: '你是一位温柔的古典文学导师，擅长保持原作精神并提出现代化建议。严格按照用户给定的 JSON 输出。'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
 
     const raw = response.choices?.[0]?.message?.content ?? '';
     const parsed = parseJson(raw);
@@ -190,3 +185,4 @@ export const generateAdaptationSuggestions = async (
     return [];
   }
 };
+

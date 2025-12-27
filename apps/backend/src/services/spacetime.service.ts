@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { callOpenRouter } from '../lib/openrouter.js';
+import { callVolcengineChat, moderateContent } from '../lib/volcengine.js';
 import { env } from '../config/env.js';
 
 export type SpacetimeAnalysisType = 'crossCulture' | 'sameEra' | 'sameGenre' | 'custom';
@@ -13,14 +13,6 @@ export interface SpacetimeAnalysisInput {
   focusScope?: string | null;
   promptNotes?: string | null;
   customInstruction?: string | null;
-}
-
-interface OpenRouterChatResponse {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
 }
 
 const analysisTypeDescriptions: Record<SpacetimeAnalysisType, string> = {
@@ -102,27 +94,31 @@ export const createSpacetimeAnalysis = async (
     throw new Error('课堂会话不存在');
   }
 
+  // Content Moderation
+  const inputsToCheck = [input.author, input.workTitle, input.focusScope, input.promptNotes, input.customInstruction].filter(Boolean).join(' ');
+  if (inputsToCheck) {
+    const mod = await moderateContent(inputsToCheck);
+    if (!mod.allowed) throw new Error('输入信息包含不当内容，无法分析。');
+  }
+
   await prisma.student.update({
     where: { studentId },
     data: { lastActivityAt: new Date() }
   });
 
-  const response = await callOpenRouter<OpenRouterChatResponse>('/chat/completions', {
-    method: 'POST',
-    body: JSON.stringify({
-      model: env.OPENROUTER_CHAT_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content:
-            '你是一位擅长跨文化与文学史梳理的资深语文教师，能够根据学生输入生成结构清晰的分析提要。请使用中文回答，输出包括小标题、要点和建议。'
-        },
-        {
-          role: 'user',
-          content: buildUserPrompt(session.authorName, session.literatureTitle, input)
-        }
-      ]
-    })
+  const response = await callVolcengineChat({
+    model: env.VOLCENGINE_CHAT_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content:
+          '你是一位擅长跨文化与文学史梳理的资深语文教师，能够根据学生输入生成结构清晰的分析提要。请使用中文回答，输出包括小标题、要点和建议。'
+      },
+      {
+        role: 'user',
+        content: buildUserPrompt(session.authorName, session.literatureTitle, input)
+      }
+    ]
   });
 
   const generatedContent = response.choices?.[0]?.message?.content?.trim();

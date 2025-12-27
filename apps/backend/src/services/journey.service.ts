@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { callOpenRouter } from '../lib/openrouter.js';
+import { callVolcengineChat } from '../lib/volcengine.js';
 import { env } from '../config/env.js';
 
 const LIFE_JOURNEY_TIMEOUT_MS = 300_000; // 5分钟
@@ -208,7 +208,7 @@ const storeLifeJourney = async (
       lifeJourney: journey,
       lifeJourneyGeneratedAt: new Date(),
       lifeJourneyRawResponse: rawResponse ?? null,
-      lifeJourneyModel: env.OPENROUTER_CHAT_MODEL,
+      lifeJourneyModel: env.VOLCENGINE_CHAT_MODEL,
       lifeJourneyAttempts: attemptNumber
     }
   });
@@ -223,7 +223,7 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
   const validEntries = options.entries?.filter(hasAnyField) ?? [];
 
   const payload = {
-    model: env.OPENROUTER_CHAT_MODEL,
+    model: env.VOLCENGINE_CHAT_MODEL,
     messages: [
       {
         role: 'system',
@@ -237,16 +237,7 @@ export const generateLifeJourney = async (sessionId: number, options: GenerateLi
     ]
   };
 
-  const response = await callOpenRouter<{ choices?: Array<{ message?: { content?: string } }> }>(
-    '/chat/completions',
-    {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      timeoutMs: LIFE_JOURNEY_TIMEOUT_MS,
-      maxRetries: LIFE_JOURNEY_MAX_RETRIES,
-      retryDelayMs: LIFE_JOURNEY_RETRY_DELAY_MS
-    }
-  );
+  const response = await callVolcengineChat(payload);
 
   const raw = response.choices?.[0]?.message?.content ?? '';
 

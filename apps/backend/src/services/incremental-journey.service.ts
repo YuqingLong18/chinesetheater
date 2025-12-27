@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { Prisma } from '@prisma/client';
-import { callOpenRouter } from '../lib/openrouter.js';
+import { callVolcengineChat } from '../lib/volcengine.js';
 import { env } from '../config/env.js';
 import type { LifeJourneyEntryInput } from './journey.service.js';
 import type { Session } from '@prisma/client';
@@ -80,27 +80,19 @@ Return ONLY a JSON object with this format:
   "reasoning": "brief explanation"
 }`;
 
-            const response = await callOpenRouter<{ choices?: Array<{ message?: { content?: string } }> }>(
-                '/chat/completions',
-                {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        model: env.OPENROUTER_CHAT_MODEL,
-                        messages: [
-                            {
-                                role: 'system',
-                                content: 'You are a literary historian. Return ONLY valid JSON.'
-                            },
-                            {
-                                role: 'user',
-                                content: stageCountPrompt
-                            }
-                        ]
-                    }),
-                    timeoutMs: 30_000,
-                    maxRetries: 2
-                }
-            );
+            const response = await callVolcengineChat({
+                model: env.VOLCENGINE_CHAT_MODEL,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a literary historian. Return ONLY valid JSON.'
+                    },
+                    {
+                        role: 'user',
+                        content: stageCountPrompt
+                    }
+                ]
+            });
 
             const raw = response.choices?.[0]?.message?.content ?? '';
             const parsed = JSON.parse(raw.trim());
@@ -121,7 +113,7 @@ Return ONLY a JSON object with this format:
                 progress: 0,
                 currentLocation: 0,
                 totalLocations,
-                model: env.OPENROUTER_CHAT_MODEL,
+                model: env.VOLCENGINE_CHAT_MODEL,
                 teacherEntries: validEntries.length > 0 ? (validEntries as any) : Prisma.JsonNull
             }
         });
@@ -255,27 +247,19 @@ Return ONLY a JSON object with this format:
                 attemptNumber
             );
 
-            const response = await callOpenRouter<{ choices?: Array<{ message?: { content?: string } }> }>(
-                '/chat/completions',
-                {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        model: env.OPENROUTER_CHAT_MODEL,
-                        messages: [
-                            {
-                                role: 'system',
-                                content: 'You are a data expert. Return ONLY valid JSON, no markdown, no explanations.'
-                            },
-                            {
-                                role: 'user',
-                                content: prompt
-                            }
-                        ]
-                    }),
-                    timeoutMs: LOCATION_TIMEOUT_MS,
-                    maxRetries: 0 // We handle retries ourselves
-                }
-            );
+            const response = await callVolcengineChat({
+                model: env.VOLCENGINE_CHAT_MODEL,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a data expert. Return ONLY valid JSON, no markdown, no explanations.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ]
+            });
 
             const raw = response.choices?.[0]?.message?.content ?? '';
             const parsed = this.extractJSON(raw);
