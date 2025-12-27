@@ -1,9 +1,9 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../middlewares/auth.js';
 import { createSession, getTeacherSessions, getSessionWithStudents, getSessionById } from '../services/session.service.js';
-import { createStudentAccounts, listStudentsForSession } from '../services/student.service.js';
+import { listStudentsForSession, deleteStudent } from '../services/student.service.js';
 import { getSessionAnalytics, getSessionActivityFeed } from '../services/analytics.service.js';
-import { createSessionSchema, studentBatchSchema } from '../schemas/auth.schema.js';
+import { createSessionSchema } from '../schemas/auth.schema.js';
 import { getSessionTaskSummary } from '../services/task.service.js';
 import { getStoredLifeJourney, refreshSessionLifeJourney } from '../services/journey.service.js';
 import { LifeJourneyGenerator } from '../services/incremental-journey.service.js';
@@ -33,7 +33,7 @@ export const createTeacherSession = async (req: AuthRequest, res: Response) => {
     const session = await createSession(
       req.user.id, // This is now the central user ID
       parseResult.data.sessionName,
-      parseResult.data.sessionPin,
+      // parseResult.data.sessionPin, // Removed manual PIN
       parseResult.data.authorName,
       parseResult.data.literatureTitle,
       tasks
@@ -60,22 +60,16 @@ export const listTeacherSessions = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const generateStudentAccountsController = async (req: AuthRequest, res: Response) => {
-  const parseResult = studentBatchSchema.safeParse({
-    quantity: Number(req.body?.quantity)
-  });
-
-  if (!parseResult.success) {
-    return res.status(400).json({ message: '数量需在1至50之间' });
-  }
-
+export const kickStudentController = async (req: AuthRequest, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ message: '未授权' });
   }
 
-  const sessionId = Number(req.params.sessionId);
-  if (Number.isNaN(sessionId)) {
-    return res.status(400).json({ message: '会话ID无效' });
+  const studentId = Number(req.params.studentId);
+  const sessionId = Number(req.params.sessionId); // We might need this to verify ownership
+
+  if (Number.isNaN(studentId) || Number.isNaN(sessionId)) {
+    return res.status(400).json({ message: '无效的ID' });
   }
 
   try {
@@ -84,11 +78,17 @@ export const generateStudentAccountsController = async (req: AuthRequest, res: R
       return res.status(404).json({ message: '未找到会话或无权操作' });
     }
 
-    const credentials = await createStudentAccounts(sessionId, parseResult.data.quantity);
-    res.status(201).json({ credentials });
+    // Check if student belongs to this session (optional but good for safety)
+    const student = session.students.find(s => s.studentId === studentId);
+    if (!student) {
+      return res.status(404).json({ message: '该学生不在此会话中' });
+    }
+
+    await deleteStudent(studentId);
+    res.status(200).json({ message: '学生已移除' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: '生成学生账号失败' });
+    res.status(500).json({ message: '移除学生失败' });
   }
 };
 

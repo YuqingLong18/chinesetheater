@@ -12,7 +12,6 @@ const StudentLoginPage = () => {
 
   const [sessionPin, setSessionPin] = useState('');
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,29 +21,22 @@ const StudentLoginPage = () => {
     setError(null);
 
     try {
-      const response = await client.post('/student/login', { sessionPin, username, password });
+      const response = await client.post('/student/login', { sessionPin, username });
       setStudentAuth(response.data.token, response.data.profile);
       navigate('/student/workspace');
     } catch (err) {
       console.error(err);
-      setError('登录失败，请检查信息是否正确');
+      setError('登录失败，请检查PIN码或稍后再试');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <AuthLayout title="学生登录" subtitle="输入课堂PIN码与账号密码进入学习界面">
+    <AuthLayout title="学生登录" subtitle="输入课堂PIN码与您的昵称进入学习界面">
       <form className="space-y-4" onSubmit={handleSubmit}>
-        <TextInput label="课堂PIN码" placeholder="请输入PIN码" value={sessionPin} onChange={(e) => setSessionPin(e.target.value)} />
-        <TextInput label="用户名" placeholder="请输入学生用户名" value={username} onChange={(e) => setUsername(e.target.value)} />
-        <TextInput
-          label="密码"
-          type="password"
-          placeholder="请输入学生密码"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <TextInput label="课堂PIN码" placeholder="请输入6位PIN码" value={sessionPin} onChange={(e) => setSessionPin(e.target.value)} />
+        <TextInput label="昵称" placeholder="请输入您的昵称" value={username} onChange={(e) => setUsername(e.target.value)} />
         {error ? <p className="text-sm text-red-500">{error}</p> : null}
         <GradientButton variant="secondary" className="w-full" type="submit" disabled={loading}>
           {loading ? '登录中...' : '进入课堂'}

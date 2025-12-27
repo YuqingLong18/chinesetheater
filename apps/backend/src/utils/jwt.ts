@@ -5,6 +5,8 @@ export interface JwtPayload {
   sub: number; // Central user ID for teachers, local studentId for students
   role: 'teacher' | 'student';
   sessionId?: number;
+  username?: string;
+  studentId?: number; // Optional alias for consistency if needed
 }
 
 const secret: Secret = env.JWT_SECRET;

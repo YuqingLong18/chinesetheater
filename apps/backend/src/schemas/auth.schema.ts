@@ -22,7 +22,6 @@ export type SessionTaskInputSchema = z.infer<typeof sessionTaskInputSchema>;
 
 export const createSessionSchema = z.object({
   sessionName: z.string().min(1, '请输入会话名称'),
-  sessionPin: z.string().regex(/^\d{4,6}$/g, 'PIN码需为4-6位数字'),
   authorName: z.string().min(1, '请输入作者姓名'),
   literatureTitle: z.string().min(1, '请输入文学作品名称'),
   tasks: z
@@ -36,9 +35,8 @@ export const studentBatchSchema = z.object({
 });
 
 export const studentLoginSchema = z.object({
-  sessionPin: z.string().regex(/^\d{4,6}$/g, '会话PIN码需为4-6位数字'),
-  username: z.string().min(4).max(12),
-  password: z.string().min(4).max(12)
+  sessionPin: z.string().min(4, '请输入有效的课堂PIN码'),
+  username: z.string().min(2, '昵称至少2个字符').max(20, '昵称过长')
 });
 
 export const chatMessageSchema = z.object({

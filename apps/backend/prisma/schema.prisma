@@ -160,8 +160,8 @@ model Student {
   session        Session          @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
   sessionId      Int
   username       String
-  passwordHash   String
-  initialPassword String?
+  passwordHash   String?
+  // initialPassword removed as we are moving to PIN+Nickname login
   isUsed         Boolean          @default(false)
   firstLoginAt   DateTime?
   lastActivityAt DateTime?

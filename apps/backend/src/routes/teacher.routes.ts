@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   createTeacherSession,
-  generateStudentAccountsController,
+  kickStudentController,
   listTeacherSessions,
   listSessionStudents,
   sessionAnalytics,
@@ -19,7 +19,7 @@ teacherRouter.use(authenticate(['teacher']));
 
 teacherRouter.get('/sessions', listTeacherSessions);
 teacherRouter.post('/sessions', createTeacherSession);
-teacherRouter.post('/sessions/:sessionId/students', generateStudentAccountsController);
+teacherRouter.delete('/sessions/:sessionId/students/:studentId', kickStudentController);
 teacherRouter.get('/sessions/:sessionId/students', listSessionStudents);
 teacherRouter.get('/sessions/:sessionId/analytics', sessionAnalytics);
 teacherRouter.get('/sessions/:sessionId/activity', sessionActivityFeed);

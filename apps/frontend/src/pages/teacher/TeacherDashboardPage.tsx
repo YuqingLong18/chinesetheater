@@ -11,7 +11,6 @@ import LifeJourneyMap from '../../components/LifeJourneyMap';
 import { CalendarDaysIcon, MapPinIcon, BookOpenIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import type {
   TeacherSession,
-  StudentCredential,
   SessionActivityFeed,
   SessionActivityMessage,
   SpacetimeAnalysisType,
@@ -26,7 +25,6 @@ import TextArea from '../../components/TextArea';
 interface StudentRow {
   studentId: number;
   username: string;
-  initialPassword: string | null;
   isUsed: boolean;
   firstLoginAt: string | null;
   lastActivityAt: string | null;
@@ -110,16 +108,13 @@ const TeacherDashboardPage = () => {
   const [selectedSession, setSelectedSession] = useState<number | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
-  const [credentials, setCredentials] = useState<StudentCredential[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<TaskDraft[]>([]);
   const [taskSummary, setTaskSummary] = useState<TeacherTaskSummary | null>(null);
   const [formData, setFormData] = useState({
     sessionName: '',
-    sessionPin: '',
     authorName: '',
     literatureTitle: ''
   });
-  const [quantity, setQuantity] = useState(5);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
@@ -418,6 +413,9 @@ const TeacherDashboardPage = () => {
         setActivityLoading(true);
       }
       try {
+        // Auto-refresh student list to show new joiners
+        void fetchStudents(selectedSession);
+
         const response = await client.get(`/teacher/sessions/${selectedSession}/activity`);
         if (!cancelled) {
           setActivityFeed(response.data.activity ?? { messages: [], images: [], spacetimeAnalyses: [] });
@@ -564,8 +562,9 @@ const TeacherDashboardPage = () => {
         return acc;
       }, []);
 
+      // No sessionPin sent; backend generates it
       await client.post('/teacher/sessions', { ...formData, tasks: taskPayload });
-      setFormData({ sessionName: '', sessionPin: '', authorName: '', literatureTitle: '' });
+      setFormData({ sessionName: '', authorName: '', literatureTitle: '' });
       setTaskDrafts([]);
       setMessage('课堂会话创建成功');
       fetchSessions();
@@ -589,24 +588,15 @@ const TeacherDashboardPage = () => {
     });
   };
 
-  const handleGenerateStudents = async () => {
-    if (!selectedSession) {
-      setMessage('请先选择课堂会话');
-      return;
-    }
-    setLoading(true);
-    setMessage(null);
-
+  const handleKickStudent = async (studentId: number) => {
+    if (!selectedSession || !confirm('确定要将该学生移出课堂吗？')) return;
     try {
-      const response = await client.post(`/teacher/sessions/${selectedSession}/students`, { quantity });
-      setCredentials(response.data.credentials ?? []);
+      await client.delete(`/teacher/sessions/${selectedSession}/students/${studentId}`);
       fetchStudents(selectedSession);
-      setMessage('学生账号生成完成');
+      setMessage('学生已移除');
     } catch (error) {
       console.error(error);
-      setMessage('生成账号失败');
-    } finally {
-      setLoading(false);
+      alert('移除失败');
     }
   };
 
@@ -820,12 +810,7 @@ const TeacherDashboardPage = () => {
                 value={formData.sessionName}
                 onChange={(e) => setFormData((prev) => ({ ...prev, sessionName: e.target.value }))}
               />
-              <TextInput
-                label="课堂PIN码"
-                placeholder="4-6位数字"
-                value={formData.sessionPin}
-                onChange={(e) => setFormData((prev) => ({ ...prev, sessionPin: e.target.value }))}
-              />
+              {/* PIN code is auto-generated */}
               <TextInput
                 label="作者姓名"
                 placeholder="请输入作者"
@@ -946,10 +931,10 @@ const TeacherDashboardPage = () => {
                   <tr className="text-left text-xs font-medium text-gray-500">
                     <th className="px-4 py-2.5">序号</th>
                     <th className="px-4 py-2.5">用户名</th>
-                    <th className="px-4 py-2.5">初始密码</th>
                     <th className="px-4 py-2.5">状态</th>
                     <th className="px-4 py-2.5">首次登录</th>
                     <th className="px-4 py-2.5">最近活动</th>
+                    <th className="px-4 py-2.5">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
@@ -957,10 +942,17 @@ const TeacherDashboardPage = () => {
                     <tr key={student.studentId}>
                       <td className="px-4 py-2">{index + 1}</td>
                       <td className="px-4 py-2 font-medium">{student.username}</td>
-                      <td className="px-4 py-2 font-mono text-sm">{student.initialPassword ?? '——'}</td>
                       <td className="px-4 py-2">{student.isUsed ? '已登录' : '未使用'}</td>
                       <td className="px-4 py-2">{student.firstLoginAt ? new Date(student.firstLoginAt).toLocaleString('zh-CN') : '-'}</td>
                       <td className="px-4 py-2">{student.lastActivityAt ? new Date(student.lastActivityAt).toLocaleString('zh-CN') : '-'}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => handleKickStudent(student.studentId)}
+                        >
+                          移除
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1386,38 +1378,7 @@ const TeacherDashboardPage = () => {
         </section>
 
         <section className="space-y-5">
-          <Card className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">学生账号生成器</h2>
-            <div className="space-y-4">
-              <label className="flex items-center justify-between text-sm text-gray-600">
-                <span>生成数量（1-50）</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
-                  className="w-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-lavender-400 focus:outline-none focus:ring-1 focus:ring-lavender-400"
-                />
-              </label>
-              <GradientButton onClick={handleGenerateStudents} disabled={loading}>
-                {loading ? '生成中...' : '生成账号'}
-              </GradientButton>
-              {credentials.length > 0 ? (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-sm text-gray-600">生成结果（请妥善保存）</p>
-                  <div className="mt-2 space-y-2 text-sm font-mono">
-                    {credentials.map((item, index) => (
-                      <div key={`${item.username}-${index}`} className="flex items-center justify-between">
-                        <span>{index + 1}. 用户名：{item.username}</span>
-                        <span>密码：{item.password}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </Card>
+
 
           <Card className="space-y-4">
             <div className="flex items-center justify-between">
@@ -1467,107 +1428,46 @@ const TeacherDashboardPage = () => {
             )}
           </Card>
 
-          {students.length > 0 ? (
-            <Card className="space-y-3">
-              <h3 className="text-base font-semibold text-gray-900">课堂账号总览</h3>
-              <div className="space-y-2 text-sm font-mono text-gray-600">
-                {students.map((student, index) => (
-                  <div key={`all-credential-${student.studentId}`} className="flex items-center justify-between">
-                    <span>{index + 1}. {student.username}</span>
-                    <span>初始密码：{student.initialPassword ?? '——'}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ) : null}
+
 
           <Card className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">课堂活动监控</h2>
             {analytics ? (
-              <div className="space-y-4 text-sm">
-                <div>
-                  <h3 className="font-semibold text-gray-800">在线学生</h3>
-                  <ul className="mt-2 space-y-1">
-                    {analytics.onlineStudents.length === 0 ? <li>暂无学生在线</li> : null}
-                    {analytics.onlineStudents.map((student) => (
-                      <li key={student.username} className="flex justify-between">
-                        <span>{student.username}</span>
-                        <span className="text-gray-500">
-                          {student.lastActivityAt ? new Date(student.lastActivityAt).toLocaleTimeString('zh-CN') : '-'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800">对话统计</h3>
-                  <ul className="mt-2 space-y-1">
-                    {analytics.conversationStats.map((item) => (
-                      <li key={item.conversationId} className="flex justify-between">
-                        <span>{item.username}</span>
-                        <span className="text-gray-500">轮数：{item.messageCount}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800">图像生成</h3>
-                  <ul className="mt-2 space-y-1">
-                    {analytics.imageStats.map((item) => (
-                      <li key={item.imageId} className="flex justify-between">
-                        <span>{item.username}</span>
-                        <span className="text-gray-500">编辑次数：{item.editCount}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800">对比分析</h3>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
-                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
-                      中外对比：{analytics.spacetimeSummary.counts.crossCulture}
-                    </span>
-                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
-                      同时代：{analytics.spacetimeSummary.counts.sameEra}
-                    </span>
-                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
-                      同流派：{analytics.spacetimeSummary.counts.sameGenre}
-                    </span>
-                    <span className="rounded-full bg-lavender-50 px-2 py-0.5 text-lavender-700">
-                      自定义：{analytics.spacetimeSummary.counts.custom}
-                    </span>
+              <div className="space-y-5 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-gray-50 p-3 text-center">
+                    <p className="text-xs text-gray-500">在线学生</p>
+                    <p className="mt-1 text-2xl font-bold text-lavender-600">{analytics.onlineStudents.length}</p>
                   </div>
-                  <ul className="mt-2 space-y-1 text-xs text-gray-500">
-                    {analytics.spacetimeSummary.recent.length === 0 ? (
-                      <li>暂无新分析</li>
-                    ) : (
-                      analytics.spacetimeSummary.recent.map((item) => (
-                        <li key={item.analysisId} className="flex justify-between">
-                          <span>
-                            {item.username} · {spacetimeTypeLabels[item.analysisType]}
-                          </span>
-                          <span>{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</span>
-                        </li>
-                      ))
-                    )}
-                  </ul>
+                  <div className="rounded-lg bg-gray-50 p-3 text-center">
+                    <p className="text-xs text-gray-500">活跃对话</p>
+                    <p className="mt-1 text-2xl font-bold text-lavender-600">{analytics.conversationStats.length}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3 text-center">
+                    <p className="text-xs text-gray-500">图像创作</p>
+                    <p className="mt-1 text-2xl font-bold text-lavender-600">{analytics.imageStats.length}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3 text-center">
+                    <p className="text-xs text-gray-500">时空分析</p>
+                    <p className="mt-1 text-2xl font-bold text-lavender-600">{analytics.spacetimeSummary.recent.length}</p>
+                  </div>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-gray-800">课堂画廊预览</h3>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {analytics.galleryPreview.map((image) => (
-                      <div key={image.imageId} className="overflow-hidden rounded-lg border border-gray-200">
-                        <img src={image.imageUrl} alt={image.sceneDescription} className="h-20 w-full object-cover" />
-                        <div className="px-2 py-1 text-xs text-gray-600">
-                          <p>{image.username}</p>
-                          <p className="truncate">{image.style}</p>
-                        </div>
-                      </div>
-                    ))}
+                  <h3 className="font-medium text-gray-700">分析类型分布</h3>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+                    <span className="rounded-full bg-lavender-50 px-2 py-1 text-lavender-700">
+                      中外对比 `{analytics.spacetimeSummary.counts.crossCulture}`
+                    </span>
+                    <span className="rounded-full bg-lavender-50 px-2 py-1 text-lavender-700">
+                      同时代 `{analytics.spacetimeSummary.counts.sameEra}`
+                    </span>
+                    <span className="rounded-full bg-lavender-50 px-2 py-1 text-lavender-700">
+                      同流派 `{analytics.spacetimeSummary.counts.sameGenre}`
+                    </span>
+                    <span className="rounded-full bg-lavender-50 px-2 py-1 text-lavender-700">
+                      自定义 `{analytics.spacetimeSummary.counts.custom}`
+                    </span>
                   </div>
                 </div>
               </div>
